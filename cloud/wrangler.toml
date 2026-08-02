@@ -16,9 +16,9 @@ APP_ENV = "prod"
 [[d1_databases]]
 binding = "DB"
 database_name = "blue-string-db"
-database_id = "TODO_填入後台建立的_D1_database_id"
+database_id = "00d073cb-fea0-4d4a-9803-382c00dbe8b5"
 
 # 圖片/影片存 KV（免綁卡）。CK 在後台建好 blue-string-media KV 後把 id 填這裡
 [[kv_namespaces]]
 binding = "MEDIA"
-id = "TODO_填入後台建立的_KV_namespace_id"
+id = "b130b503659042468fc5a4a361f92ff1"
