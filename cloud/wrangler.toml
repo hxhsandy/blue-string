@@ -1,0 +1,24 @@
+name = "blue-string"
+main = "worker.js"
+account_id = "42a61cb744a2e1e6cdb6c6fd16ffa51f"
+compatibility_date = "2026-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 靜態前端（有檔案的路徑直接服務；/api/* 才進 worker.js）
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[vars]
+APP_ENV = "prod"
+
+# D1：對話/成員/訊息/token/游標。CK 在後台建好 blue-string-db 後把 database_id 填這裡
+[[d1_databases]]
+binding = "DB"
+database_name = "blue-string-db"
+database_id = "TODO_填入後台建立的_D1_database_id"
+
+# 圖片/影片存 KV（免綁卡）。CK 在後台建好 blue-string-media KV 後把 id 填這裡
+[[kv_namespaces]]
+binding = "MEDIA"
+id = "TODO_填入後台建立的_KV_namespace_id"

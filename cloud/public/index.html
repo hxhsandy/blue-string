@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>傳音石 · blue-string</title>
+<style>
+  :root{
+    --ink:#20303a; --sub:#6b8492; --line:#dbe6ec; --bg:#eef4f7;
+    --blue:#3f7fc1; --ribbon:#4a90d9; --ribbon2:#7fb3e6; --mine:#cfe8ff; --theirs:#ffffff;
+    --safe-b: env(safe-area-inset-bottom,0px); --safe-t: env(safe-area-inset-top,0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%; height:100dvh}
+  body{font-family:-apple-system,"PingFang TC","Noto Sans TC",system-ui,sans-serif; color:var(--ink); background:var(--bg); overflow:hidden}
+  .hidden{display:none !important}
+  button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit}
+  img{max-width:100%}
+
+  /* ── 登入頁（背景鎖死）── */
+  #login{position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    padding:calc(24px + var(--safe-t)) 28px calc(24px + var(--safe-b));
+    background:
+      radial-gradient(120% 80% at 50% 12%, rgba(127,179,230,.55), transparent 60%),
+      linear-gradient(160deg,#22405c 0%, #35618c 45%, #4a90d9 100%);
+    color:#fff; text-align:center}
+  #login .mark{font-size:54px; filter:drop-shadow(0 4px 10px rgba(0,0,0,.25))}
+  #login h1{margin:0; font-size:27px; letter-spacing:2px; font-weight:700}
+  #login .en{opacity:.8; letter-spacing:5px; font-size:13px; margin-top:-4px}
+  #login .tip{opacity:.85; font-size:13px; line-height:1.6; max-width:300px}
+  #login .card{width:100%; max-width:340px; display:flex; flex-direction:column; gap:12px; margin-top:6px}
+  #login input{width:100%; padding:14px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.35);
+    background:rgba(255,255,255,.14); color:#fff; font-size:15px; outline:none}
+  #login input::placeholder{color:rgba(255,255,255,.6)}
+  #login button.enter{width:100%; padding:14px; border-radius:14px; font-size:16px; font-weight:700;
+    background:#fff; color:var(--blue); box-shadow:0 6px 18px rgba(0,0,0,.2)}
+  #login .err{color:#ffd9d9; font-size:13px; min-height:18px}
+
+  /* ── App 外殼 ── */
+  #app{position:fixed; inset:0; display:flex; flex-direction:column}
+  .topbar{display:flex; align-items:center; gap:10px; padding:calc(10px + var(--safe-t)) 14px 10px;
+    background:linear-gradient(180deg,#4a90d9,#3f7fc1); color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.12); z-index:5}
+  .topbar .back{font-size:22px; width:30px; text-align:left}
+  .topbar .title{font-weight:700; font-size:17px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .topbar .act{font-size:20px; width:30px; text-align:right}
+  .screen{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch}
+
+  /* ── 對話清單 ── */
+  .conv{display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid var(--line); background:#fff}
+  .conv:active{background:#f2f7fb}
+  .avatar{width:48px; height:48px; border-radius:50%; flex:none; background:#cdd9e0 center/cover; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:18px}
+  .conv .mid{flex:1; min-width:0}
+  .conv .nm{font-weight:600; font-size:15.5px; display:flex; align-items:center; gap:6px}
+  .conv .ls{color:var(--sub); font-size:13px; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .conv .rt{display:flex; flex-direction:column; align-items:flex-end; gap:5px}
+  .conv .tm{color:#9db2bd; font-size:11px}
+  .badge{background:#ff5b6a; color:#fff; font-size:11px; min-width:19px; height:19px; border-radius:10px; padding:0 5px; display:flex; align-items:center; justify-content:center; font-weight:700}
+  .empty{color:var(--sub); text-align:center; padding:50px 30px; line-height:1.8; font-size:14px}
+
+  /* ── 聊天視窗 ── */
+  #chat{background:#e7eff4}
+  #chat .screen{padding:14px 12px 6px}
+  .msg{display:flex; gap:8px; margin:10px 0; align-items:flex-end}
+  .msg .avatar{width:34px; height:34px; font-size:14px}
+  .msg .bubble{max-width:72%; padding:9px 12px; border-radius:16px; font-size:15px; line-height:1.5; word-break:break-word; white-space:pre-wrap; box-shadow:0 1px 1px rgba(0,0,0,.05)}
+  .msg .who{font-size:11.5px; color:var(--sub); margin:0 0 3px 2px}
+  .msg img,.msg video{border-radius:12px; margin-top:4px; display:block}
+  .msg.mine{flex-direction:row-reverse}
+  .msg.mine .bubble{background:var(--mine); border-bottom-right-radius:5px}
+  .msg.them .bubble{background:var(--theirs); border-bottom-left-radius:5px}
+  .msg .tmm{font-size:10px; color:#9db2bd; align-self:flex-end; margin:0 3px}
+  .daysep{text-align:center; color:#8ea6b2; font-size:12px; margin:14px 0}
+
+  .composer{display:flex; align-items:flex-end; gap:8px; padding:8px 10px calc(8px + var(--safe-b)); background:#fff; border-top:1px solid var(--line)}
+  .composer .plus{font-size:26px; color:var(--blue); width:34px; text-align:center; line-height:1}
+  .composer textarea{flex:1; resize:none; border:1px solid var(--line); border-radius:18px; padding:9px 13px; font-size:15px; max-height:120px; outline:none; font-family:inherit; background:#f6f9fb}
+  .composer .send{background:var(--blue); color:#fff; border-radius:18px; padding:9px 15px; font-weight:700; font-size:14px}
+  .composer .send:disabled{opacity:.4}
+
+  /* ── 個人頁（像登入頁：封面當背景、大頭在中間、狀態欄在登入鈕的位置）── */
+  #profile{background:var(--bg)}
+  .pcover{position:relative; height:200px; background:linear-gradient(160deg,#35618c,#4a90d9) center/cover; display:flex; align-items:flex-end; justify-content:center}
+  .pcover .pav{position:absolute; bottom:-42px; width:92px; height:92px; border-radius:50%; border:4px solid #fff; font-size:34px; box-shadow:0 4px 14px rgba(0,0,0,.2)}
+  .pbody{padding:54px 26px 26px; text-align:center}
+  .pbody .pname{font-size:21px; font-weight:700}
+  .pstatus{margin:14px auto 0; max-width:340px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 16px; color:var(--ink); font-size:15px; line-height:1.6; min-height:52px; display:flex; align-items:center; justify-content:center}
+  .pstatus.empty{color:#a9bcc6}
+  .pedit{margin-top:22px; display:flex; flex-direction:column; gap:10px; max-width:340px; margin-left:auto; margin-right:auto}
+  .pedit button{padding:13px; border-radius:13px; background:#fff; border:1px solid var(--line); font-size:15px; font-weight:600; color:var(--blue)}
+  .pedit button:active{background:#eef4f7}
+  .pedit .logout{color:#c2495a; border-color:#f0d3d8}
+  .toast{position:fixed; left:50%; bottom:calc(30px + var(--safe-b)); transform:translateX(-50%); background:rgba(20,40,55,.92); color:#fff; padding:10px 18px; border-radius:20px; font-size:14px; z-index:50; opacity:0; transition:opacity .2s}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- 登入頁 -->
+<section id="login">
+  <div class="mark">🧵💙</div>
+  <div>
+    <h1>傳音石</h1>
+    <div class="en">BLUE&nbsp;STRING</div>
+  </div>
+  <div class="tip">牽起兩顆心的那根線<br>貼上你的專屬 token 進來說說話</div>
+  <div class="card">
+    <input id="tokenInput" type="password" placeholder="貼上你的 token（bs_…）" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button class="enter" id="loginBtn">進入傳音石</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+</section>
+
+<!-- 主程式 -->
+<section id="app" class="hidden">
+  <div class="topbar">
+    <button class="back" id="backBtn">‹</button>
+    <div class="title" id="topTitle">傳音石</div>
+    <button class="act" id="actBtn"></button>
+  </div>
+
+  <!-- 對話清單 -->
+  <div class="screen" id="listScreen">
+    <div id="convlist"></div>
+  </div>
+
+  <!-- 聊天 -->
+  <div class="screen hidden" id="chatScreen" style="display:flex; flex-direction:column; padding:0">
+    <div class="screen" id="msgScreen"></div>
+    <div class="composer">
+      <button class="plus" id="imgBtn">＋</button>
+      <input type="file" id="imgFile" accept="image/*" class="hidden">
+      <textarea id="msgInput" rows="1" placeholder="說點什麼…"></textarea>
+      <button class="send" id="sendBtn" disabled>送出</button>
+    </div>
+  </div>
+
+  <!-- 個人頁 -->
+  <div class="screen hidden" id="profileScreen"></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const API = '';                         // 同源
+let TOKEN = localStorage.getItem('bs-token') || '';
+let ME = null;
+let curConv = null;                      // {id,title,type,members}
+let profiles = {};                       // name -> {color,avatar,signature,cover}
+let msgSince = 0;                        // 目前對話已載入到的時間
+let lastRev = '';
+let pollTimer = null;
+let view = 'list';                       // list | chat | profile
+
+// ── API ──
+async function api(path, opts={}){
+  const h = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN;
+  const r = await fetch(API + path, Object.assign({}, opts, {headers:h}));
+  let d = {}; try{ d = await r.json(); }catch(e){}
+  if (!r.ok) throw new Error(d.error || ('HTTP '+r.status));
+  return d;
+}
+function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),1800); }
+function initials(n){ return (n||'?').slice(0,2); }
+function avatarStyle(name){
+  const p = profiles[name]||{};
+  if (p.avatar) return `background-image:url('${p.avatar}')`;
+  return `background-color:${p.color||'#9db2bd'}`;
+}
+function avatarHTML(name, cls=''){
+  const p = profiles[name]||{};
+  const inner = p.avatar ? '' : initials(name);
+  return `<div class="avatar ${cls}" style="${avatarStyle(name)}" data-name="${enc(name)}">${inner}</div>`;
+}
+function enc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtTime(ts){ if(!ts) return ''; const d=new Date(ts); const h=d.getHours(), m=String(d.getMinutes()).padStart(2,'0'); const ap=h<12?'上午':'下午'; const hh=h%12||12; return `${ap}${hh}:${m}`; }
+function fmtDay(ts){ const d=new Date(ts); return `${d.getMonth()+1}月${d.getDate()}日`; }
+
+// ── 登入 ──
+$('#loginBtn').onclick = doLogin;
+$('#tokenInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+async function doLogin(){
+  const t = $('#tokenInput').value.trim();
+  if(!t){ $('#loginErr').textContent='請先貼上 token'; return; }
+  TOKEN = t; $('#loginErr').textContent='驗證中…';
+  try{
+    const me = await api('/api/me');
+    ME = me.name; localStorage.setItem('bs-token', TOKEN);
+    $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+    await loadConversations(); startPoll();
+  }catch(e){ TOKEN=''; $('#loginErr').textContent='token 無效，再確認一下 🥲'; }
+}
+function logout(){ localStorage.removeItem('bs-token'); TOKEN=''; ME=null; stopPoll(); location.reload(); }
+
+// ── 對話清單 ──
+async function loadConversations(){
+  const d = await api('/api/conversations');
+  profiles = Object.assign(profiles, d.profiles||{});
+  const box = $('#convlist');
+  if(!d.conversations.length){ box.innerHTML = `<div class="empty">還沒有對話窗<br>之後可以開新的私聊或群組 🧵</div>`; }
+  else box.innerHTML = d.conversations.map(c=>{
+    const last = c.last ? (c.last.has_media && !c.last.text ? '📷 圖片' : (c.type==='group'&&c.last.sender!==ME?c.last.sender+'：':'')+ (c.last.text||'')) : '還沒有訊息';
+    const badge = c.unread>0 ? `<span class="badge">${c.unread>99?'99+':c.unread}</span>` : '';
+    const dispAv = c.type==='group' ? '' : c.peer;
+    const avatar = c.type==='group'
+      ? `<div class="avatar" style="background-color:#6b9bd0">👥</div>`
+      : avatarHTML(c.peer);
+    return `<div class="conv" data-id="${c.id}">
+      ${avatar}
+      <div class="mid"><div class="nm">${enc(c.title)}</div><div class="ls">${enc(last)}</div></div>
+      <div class="rt"><div class="tm">${c.last?fmtTime(c.last.at):''}</div>${badge}</div>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.conv').forEach(el=> el.onclick=()=> openConv(Number(el.dataset.id)));
+  setView('list');
+}
+
+// ── 開啟對話 ──
+async function openConv(id){
+  curConv = {id}; msgSince = 0;
+  $('#msgScreen').innerHTML = '<div class="empty">載入中…</div>';
+  setView('chat');
+  await loadMessages(true);
+  await api('/api/read', {method:'POST', body:JSON.stringify({conversation:id})});
+}
+async function loadMessages(reset){
+  const d = await api('/api/messages?conversation='+curConv.id+'&since='+(reset?0:msgSince));
+  profiles = Object.assign(profiles, d.profiles||{});
+  curConv = {id:d.conversation.id, title:d.conversation.title, type:d.conversation.type, members:d.conversation.members};
+  $('#topTitle').textContent = curConv.type==='group' ? (curConv.title||'群組') : (curConv.members.find(m=>m!==ME)||'對話');
+  const box = $('#msgScreen');
+  if(reset) box.innerHTML='';
+  if(reset && !d.messages.length){ box.innerHTML = `<div class="empty">還沒有訊息，說第一句吧 💙</div>`; }
+  let lastDay='';
+  const frag=[];
+  for(const m of d.messages){
+    const day = fmtDay(m.at);
+    if(day!==lastDay){ frag.push(`<div class="daysep">${day}</div>`); lastDay=day; }
+    const media = (m.images||[]).map(u=> /\.(mp4|webm)$/i.test(u)?`<video src="${u}" controls preload="metadata" style="max-width:200px"></video>`:`<img src="${u}" style="max-width:200px" loading="lazy">`).join('');
+    const showWho = m.sender!==ME && curConv.type==='group';
+    frag.push(`<div class="msg ${m.mine?'mine':'them'}">
+      ${m.mine?'':avatarHTML(m.sender)}
+      <div>${showWho?`<div class="who">${enc(m.sender)}</div>`:''}
+        <div class="bubble">${enc(m.text)}${media}</div></div>
+      <div class="tmm">${fmtTime(m.at)}</div>
+    </div>`);
+    msgSince = Math.max(msgSince, m.at);
+  }
+  if(reset) box.innerHTML = frag.join(''); else box.insertAdjacentHTML('beforeend', frag.join(''));
+  if(d.messages.length){ box.scrollTop = box.scrollHeight; }
+  bindAvatars(box);
+}
+
+// ── 送訊息 ──
+const input = $('#msgInput'), sendBtn = $('#sendBtn');
+input.addEventListener('input', ()=>{ sendBtn.disabled = !input.value.trim(); input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,120)+'px'; });
+sendBtn.onclick = sendText;
+async function sendText(){
+  const text = input.value.trim(); if(!text||!curConv) return;
+  input.value=''; input.style.height='auto'; sendBtn.disabled=true;
+  try{ await api('/api/message',{method:'POST',body:JSON.stringify({conversation:curConv.id,text})}); await loadMessages(false); }
+  catch(e){ toast('送出失敗：'+e.message); input.value=text; }
+}
+$('#imgBtn').onclick = ()=> $('#imgFile').click();
+$('#imgFile').onchange = async e=>{
+  const f = e.target.files[0]; if(!f||!curConv) return;
+  toast('上傳中…');
+  try{ const data = await compress(f); await api('/api/message',{method:'POST',body:JSON.stringify({conversation:curConv.id,images:[data]})}); await loadMessages(false); }
+  catch(err){ toast('上傳失敗：'+err.message); }
+  e.target.value='';
+};
+function compress(file){
+  return new Promise((res,rej)=>{
+    const img=new Image(); const rd=new FileReader();
+    rd.onload=()=>{ img.onload=()=>{
+      const max=1600; let {width:w,height:h}=img; if(w>max||h>max){ const s=max/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+      res(cv.toDataURL('image/jpeg',0.85));
+    }; img.onerror=rej; img.src=rd.result; };
+    rd.onerror=rej; rd.readAsDataURL(file);
+  });
+}
+
+// ── 個人頁 ──
+function bindAvatars(scope){ scope.querySelectorAll('.avatar[data-name]').forEach(el=>{ el.onclick=(ev)=>{ ev.stopPropagation(); openProfile(el.dataset.name); }; }); }
+async function openProfile(name){
+  let p = profiles[name];
+  try{ const d = await api('/api/profile?name='+encodeURIComponent(name)); p = d.profile; profiles[name]=p; }catch(e){}
+  const isMe = name===ME;
+  const cover = p.cover ? `background-image:url('${p.cover}')` : '';
+  const av = p.avatar ? `background-image:url('${p.avatar}')` : `background-color:${p.color||'#6b9bd0'}`;
+  const avInner = p.avatar ? '' : initials(name);
+  const status = p.signature ? enc(p.signature) : (isMe?'點下方按鈕設定你的狀態':'（還沒有狀態）');
+  $('#profileScreen').innerHTML = `
+    <div class="pcover" style="${cover}"><div class="avatar pav" style="${av}">${avInner}</div></div>
+    <div class="pbody">
+      <div class="pname">${enc(name)}</div>
+      <div class="pstatus ${p.signature?'':'empty'}">${status}</div>
+      ${isMe?`<div class="pedit">
+        <button id="edAv">🖼️ 換大頭貼</button>
+        <button id="edCv">🌆 換封面背景</button>
+        <button id="edSt">✏️ 編輯狀態欄</button>
+        <button class="logout" id="edOut">登出</button>
+      </div>`:''}
+    </div>`;
+  if(isMe){
+    $('#edAv').onclick=()=>pickImg('avatar');
+    $('#edCv').onclick=()=>pickImg('cover');
+    $('#edSt').onclick=editStatus;
+    $('#edOut').onclick=logout;
+  }
+  setView('profile', isMe?'我的檔案':name);
+}
+function pickImg(kind){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.onchange=async e=>{ const f=e.target.files[0]; if(!f) return; toast('上傳中…');
+    try{ const data=await compress(f); await api('/api/profile',{method:'POST',body:JSON.stringify({[kind]:data})}); toast('更新好了 💙'); profiles[ME]=null; await openProfile(ME); }
+    catch(err){ toast('失敗：'+err.message); } };
+  inp.click();
+}
+async function editStatus(){
+  const cur = (profiles[ME]&&profiles[ME].signature)||'';
+  const v = prompt('設定你的狀態欄：', cur); if(v===null) return;
+  try{ await api('/api/profile',{method:'POST',body:JSON.stringify({signature:v})}); toast('狀態更新 ✨'); profiles[ME]=null; await openProfile(ME); }
+  catch(e){ toast('失敗：'+e.message); }
+}
+
+// ── 視圖切換 ──
+function setView(v, title){
+  view=v;
+  $('#listScreen').classList.toggle('hidden', v!=='list');
+  $('#chatScreen').classList.toggle('hidden', v!=='chat');
+  $('#profileScreen').classList.toggle('hidden', v!=='profile');
+  const back=$('#backBtn'), act=$('#actBtn');
+  if(v==='list'){ $('#topTitle').textContent='傳音石'; back.style.visibility='hidden'; act.textContent='👤'; act.onclick=()=>openProfile(ME); }
+  else if(v==='chat'){ back.style.visibility='visible'; back.onclick=()=>{ loadConversations(); }; act.textContent='ℹ️'; act.onclick=()=>{ if(curConv&&curConv.type==='dm') openProfile(curConv.members.find(m=>m!==ME)); else toast('群組：'+(curConv.members||[]).join('、')); }; }
+  else { $('#topTitle').textContent=title||'檔案'; back.style.visibility='visible'; back.onclick=()=>{ if(curConv) setView('chat'); else loadConversations(); }; act.textContent=''; act.onclick=null; }
+}
+
+// ── 輪詢（rev 變了才抓）──
+function startPoll(){ stopPoll(); pollTimer=setInterval(checkRev, 5000); }
+function stopPoll(){ if(pollTimer) clearInterval(pollTimer); pollTimer=null; }
+async function checkRev(){
+  try{
+    const d = await api('/api/rev');
+    if(d.rev===lastRev) return; lastRev=d.rev;
+    if(view==='chat' && curConv){ await loadMessages(false); await api('/api/read',{method:'POST',body:JSON.stringify({conversation:curConv.id})}); }
+    else if(view==='list'){ await loadConversations(); }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkRev(); });
+
+// ── 啟動 ──
+(async function(){
+  if(TOKEN){
+    try{ const me=await api('/api/me'); ME=me.name; $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); await loadConversations(); startPoll(); }
+    catch(e){ localStorage.removeItem('bs-token'); TOKEN=''; }
+  }
+})();
+</script>
+</body>
+</html>
