@@ -128,6 +128,7 @@
   <!-- 聊天 -->
   <div class="screen hidden" id="chatScreen" style="display:flex; flex-direction:column; padding:0">
     <div class="screen" id="msgScreen"></div>
+    <div id="observeBar" class="hidden" style="padding:12px; text-align:center; background:#eef3f6; color:#6b8492; font-size:13px; border-top:1px solid var(--line)">👁 觀察模式 · 你不在這段對話裡，只讀不發言</div>
     <div class="composer">
       <button class="plus" id="imgBtn">＋</button>
       <input type="file" id="imgFile" accept="image/*" class="hidden">
@@ -204,13 +205,14 @@ async function loadConversations(){
   else box.innerHTML = d.conversations.map(c=>{
     const last = c.last ? (c.last.has_media && !c.last.text ? '📷 圖片' : (c.type==='group'&&c.last.sender!==ME?c.last.sender+'：':'')+ (c.last.text||'')) : '還沒有訊息';
     const badge = c.unread>0 ? `<span class="badge">${c.unread>99?'99+':c.unread}</span>` : '';
+    const eye = c.observing ? `<span style="font-size:11px;color:#8ea6b2">👁</span>` : '';
     const dispAv = c.type==='group' ? '' : c.peer;
     const avatar = c.type==='group'
       ? `<div class="avatar" style="background-color:#6b9bd0">👥</div>`
       : avatarHTML(c.peer);
     return `<div class="conv" data-id="${c.id}">
       ${avatar}
-      <div class="mid"><div class="nm">${enc(c.title)}</div><div class="ls">${enc(last)}</div></div>
+      <div class="mid"><div class="nm">${enc(c.title)} ${eye}</div><div class="ls">${enc(last)}</div></div>
       <div class="rt"><div class="tm">${c.last?fmtTime(c.last.at):''}</div>${badge}</div>
     </div>`;
   }).join('');
@@ -229,8 +231,11 @@ async function openConv(id){
 async function loadMessages(reset){
   const d = await api('/api/messages?conversation='+curConv.id+'&since='+(reset?0:msgSince));
   profiles = Object.assign(profiles, d.profiles||{});
-  curConv = {id:d.conversation.id, title:d.conversation.title, type:d.conversation.type, members:d.conversation.members};
-  $('#topTitle').textContent = curConv.type==='group' ? (curConv.title||'群組') : (curConv.members.find(m=>m!==ME)||'對話');
+  curConv = {id:d.conversation.id, title:d.conversation.title, type:d.conversation.type, members:d.conversation.members, observing:d.conversation.observing};
+  $('#topTitle').textContent = curConv.type==='group' ? (curConv.title||'群組') : (curConv.observing ? curConv.members.join(' ↔ ') : (curConv.members.find(m=>m!==ME)||'對話'));
+  // 觀察模式（我不在這段對話裡，例如 admin 監督私聊）：只讀不發言
+  $('.composer').classList.toggle('hidden', !!curConv.observing);
+  $('#observeBar').classList.toggle('hidden', !curConv.observing);
   const box = $('#msgScreen');
   if(reset) box.innerHTML='';
   if(reset && !d.messages.length){ box.innerHTML = `<div class="empty">還沒有訊息，說第一句吧 💙</div>`; }

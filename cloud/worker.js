@@ -92,10 +92,15 @@ function mediaUrls(csv) {
   return (csv ? csv.split(',').filter(Boolean) : []).map(k => '/api/media?key=' + encodeURIComponent(k));
 }
 
-// ── GET /api/conversations：我有份的每段對話（對方/群名、最後一則、未讀數）──
+// ── GET /api/conversations：對話清單（對方/群名、最後一則、未讀數）──
+// 一般成員：只看自己有份的。admin(擁有者 CK)：看得到全部——為安全監督(4.6+ 模型 bug 可能亂輸出/刪檔，
+// 出事在看不到的地方會來不及救)。她不在的對話標 observing=true(只讀不發言)。此監督是公開的、非偷窺。
 async function getConversations(env, me) {
-  const ids = await myConvIds(env, me.name);
-  if (!ids.length) return json({ me: me.name, conversations: [], profiles: {} });
+  const admin = hasScope(me, 'admin');
+  const ids = admin
+    ? (await env.DB.prepare('SELECT id FROM conversations ORDER BY updated_at DESC').all()).results.map(r => r.id)
+    : await myConvIds(env, me.name);
+  if (!ids.length) return json({ me: me.name, admin, conversations: [], profiles: {} });
   const convs = [];
   const memberNames = [me.name];
   for (const cid of ids) {
@@ -103,29 +108,30 @@ async function getConversations(env, me) {
     if (!c) continue;
     const members = (await env.DB.prepare('SELECT member FROM conversation_members WHERE conversation_id = ?').bind(cid).all()).results.map(r => r.member);
     members.forEach(m => memberNames.push(m));
+    const observing = !members.includes(me.name);
     const last = await env.DB.prepare('SELECT sender,text,media_keys,created_at FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1').bind(cid).first();
     const cur = await env.DB.prepare('SELECT last_read_at FROM read_cursors WHERE conversation_id = ? AND reader = ?').bind(cid, me.name).first();
     const lastRead = cur ? cur.last_read_at : 0;
     const un = await env.DB.prepare('SELECT COUNT(*) n FROM messages WHERE conversation_id = ? AND created_at > ? AND sender != ?').bind(cid, lastRead, me.name).first();
     const peer = c.type === 'dm' ? (members.find(m => m !== me.name) || '') : '';
+    const title = c.type === 'group' ? (c.title || '群組') : (observing ? members.join(' ↔ ') : peer);
     convs.push({
-      id: c.id, type: c.type,
-      title: c.type === 'group' ? (c.title || '群組') : peer,
-      peer, members,
+      id: c.id, type: c.type, title, peer, members, observing,
       updated_at: c.updated_at,
       last: last ? { sender: last.sender, text: last.text || '', has_media: !!last.media_keys, at: last.created_at } : null,
       unread: (un && un.n) || 0,
     });
   }
   convs.sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
-  return json({ me: me.name, conversations: convs, profiles: await profilesFor(env, memberNames) });
+  return json({ me: me.name, admin, conversations: convs, profiles: await profilesFor(env, memberNames) });
 }
 
 // ── GET /api/messages?conversation=X&since=<ms>：某對話訊息（增量）。非成員擋。 ──
 async function getMessages(url, env, me) {
   const cid = Number(url.searchParams.get('conversation'));
   if (!cid) return json({ error: '缺 conversation' }, 400);
-  if (!(await isMember(env, cid, me.name))) return json({ error: '你不在這段對話裡' }, 403);
+  const member = await isMember(env, cid, me.name);
+  if (!member && !hasScope(me, 'admin')) return json({ error: '你不在這段對話裡' }, 403);   // admin 可監督讀取
   const since = Number(url.searchParams.get('since') || 0);
   const rows = (await env.DB.prepare(
     'SELECT id,sender,text,media_keys,created_at FROM messages WHERE conversation_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 300'
@@ -134,7 +140,7 @@ async function getMessages(url, env, me) {
   const members = (await env.DB.prepare('SELECT member FROM conversation_members WHERE conversation_id = ?').bind(cid).all()).results.map(r => r.member);
   const msgs = rows.map(r => ({ id: r.id, sender: r.sender, text: r.text || '', images: mediaUrls(r.media_keys), at: r.created_at, mine: r.sender === me.name }));
   return json({
-    conversation: { id: cid, type: c ? c.type : 'group', title: c ? c.title : '', members },
+    conversation: { id: cid, type: c ? c.type : 'group', title: c ? c.title : '', members, member, observing: !member },
     messages: msgs, now: Date.now(),
     profiles: await profilesFor(env, members),
   });
@@ -168,7 +174,7 @@ async function markRead(request, env, me) {
   const b = await request.json().catch(() => ({}));
   const cid = Number(b.conversation);
   if (!cid) return json({ error: '缺 conversation' }, 400);
-  if (!(await isMember(env, cid, me.name))) return json({ error: '你不在這段對話裡' }, 403);
+  if (!(await isMember(env, cid, me.name)) && !hasScope(me, 'admin')) return json({ error: '你不在這段對話裡' }, 403);   // admin 監督時也能標已讀(未讀徽章用)
   const at = Number(b.at) || Date.now();
   await env.DB.prepare('INSERT INTO read_cursors (conversation_id,reader,last_read_at) VALUES (?,?,?) ON CONFLICT(conversation_id,reader) DO UPDATE SET last_read_at = excluded.last_read_at').bind(cid, me.name, at).run();
   return json({ ok: true, at });
@@ -215,8 +221,16 @@ async function updateProfile(request, env, me) {
   return json({ ok: true });
 }
 
-// ── GET /api/rev：per-user 輕量指紋。只反映「我有份的對話」有沒有變 → 不洩漏別人在密聊的時間訊號。 ──
+// ── GET /api/rev：輕量指紋。一般成員＝per-user(只反映我有份的對話，不洩漏別人在密聊的時間訊號)；
+//    admin(擁有者)＝全域(能即時監督所有對話，含私聊，用於抓 bug)。 ──
 async function getRev(env, me) {
+  if (hasScope(me, 'admin')) {
+    let mu = 0, mc = 0, pf = 0;
+    try { const a = await env.DB.prepare('SELECT MAX(updated_at) m FROM conversations').first(); mu = (a && a.m) || 0; } catch (e) {}
+    try { const b = await env.DB.prepare('SELECT COUNT(*) n FROM messages').first(); mc = (b && b.n) || 0; } catch (e) {}
+    try { const p = await env.DB.prepare('SELECT MAX(updated_at) u FROM profiles').first(); pf = (p && p.u) || 0; } catch (e) {}
+    return json({ rev: mu + '-' + mc + '-' + pf, admin: true });
+  }
   const ids = await myConvIds(env, me.name);
   if (!ids.length) return json({ rev: '0-0-0' });
   let maxUpd = 0, msgCount = 0;
