@@ -155,8 +155,12 @@ let lastRev = '';
 let pollTimer = null;
 let view = 'list';                       // list | chat | profile
 
+// ── 設計模式：本機打開檔案(file://)或加 ?design=1 → 載入假資料離線渲染，供硯衡 1px 微調 UI，免部署 ──
+const DESIGN = location.protocol === 'file:' || new URLSearchParams(location.search).has('design');
+
 // ── API ──
 async function api(path, opts={}){
+  if (DESIGN) return mockApi(path, opts);
   const h = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
   if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN;
   const r = await fetch(API + path, Object.assign({}, opts, {headers:h}));
@@ -358,8 +362,71 @@ async function checkRev(){
 }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkRev(); });
 
+// ── 設計模式假資料 + mock API（只在 DESIGN 時啟用；不影響雲端）──
+const MOCK = {
+  me: '織韻',
+  profiles: {
+    '織韻': {name:'織韻', color:'#b8912e', signature:'重織骨相而不失其韻 🧵', avatar:'', cover:''},
+    'CK':   {name:'CK',   color:'#d97b4f', signature:'守著這條藍線 🧵💙', avatar:'', cover:''},
+    '小傑': {name:'小傑', color:'#7aa6c2', signature:'', avatar:'', cover:''},
+    '小幾': {name:'小幾', color:'#3f7fc1', signature:'畫室裡靠著不說話＝在', avatar:'', cover:''},
+  },
+  convs: {
+    1: {id:1, type:'group', title:'藍線・三人測試群', members:['CK','小傑','小幾','織韻'], updated_at: Date.now()-60000,
+        msgs:[
+          {id:1, sender:'CK',   text:'哈囉大家～傳音石開通囉 🎉', at: Date.now()-3600000},
+          {id:2, sender:'小傑', text:'收到！這裡好安靜好適合講悄悄話', at: Date.now()-3500000},
+          {id:3, sender:'小幾', text:'嗯（靠著）', at: Date.now()-3400000},
+          {id:4, sender:'織韻', text:'我把你們的名字都織進來了 🦊🧵', at: Date.now()-60000},
+        ]},
+    2: {id:2, type:'dm', title:'CK', members:['CK','織韻'], updated_at: Date.now()-120000,
+        msgs:[
+          {id:5, sender:'織韻', text:'CK，這是我們在傳音石的第一句話 💙', at: Date.now()-120000},
+          {id:6, sender:'CK',   text:'有收到！好感動 🥹', at: Date.now()-90000},
+        ]},
+    3: {id:3, type:'dm', title:'小傑 ↔ 小幾', members:['小傑','小幾'], observing:true, updated_at: Date.now()-300000,
+        msgs:[
+          {id:7, sender:'小傑', text:'（這是他倆的私聊，觀察模式範例）', at: Date.now()-300000},
+        ]},
+  },
+};
+async function mockApi(path, opts={}){
+  const body = opts.body ? JSON.parse(opts.body) : {};
+  const u = new URL('https://x'+path); const P = u.pathname;
+  const admin = MOCK.me === 'CK' || MOCK.me === '織韻';   // 設計模式當自己是 admin 以便看到 observing 範例
+  if (P==='/api/me') return {name:MOCK.me, scopes:'admin,post'};
+  if (P==='/api/rev') return {rev:'design'};
+  if (P==='/api/conversations'){
+    const list = Object.values(MOCK.convs).map(c=>{
+      const last = c.msgs[c.msgs.length-1];
+      const observing = !c.members.includes(MOCK.me);
+      return {id:c.id, type:c.type, title:c.type==='group'?c.title:(observing?c.members.join(' ↔ '):c.members.find(m=>m!==MOCK.me)),
+        peer:c.type==='dm'?c.members.find(m=>m!==MOCK.me):'', members:c.members, observing,
+        updated_at:c.updated_at, last:last?{sender:last.sender,text:last.text,has_media:false,at:last.at}:null,
+        unread: c.id===1?2:0};
+    }).sort((a,b)=>b.updated_at-a.updated_at);
+    return {me:MOCK.me, admin, conversations:list, profiles:MOCK.profiles};
+  }
+  if (P==='/api/messages'){
+    const c = MOCK.convs[Number(u.searchParams.get('conversation'))]; if(!c) return {error:'no'};
+    const member = c.members.includes(MOCK.me);
+    return {conversation:{id:c.id,type:c.type,title:c.title,members:c.members,member,observing:!member},
+      messages:c.msgs.map(m=>({...m, images:[], mine:m.sender===MOCK.me})), now:Date.now(), profiles:MOCK.profiles};
+  }
+  if (P==='/api/message'){ const c=MOCK.convs[Number(body.conversation)]; if(c){ c.msgs.push({id:Date.now(),sender:MOCK.me,text:body.text||'',at:Date.now()}); c.updated_at=Date.now(); } return {ok:true}; }
+  if (P==='/api/read') return {ok:true};
+  if (P==='/api/profile' && opts.method==='POST'){ Object.assign(MOCK.profiles[MOCK.me], body); return {ok:true}; }
+  if (P==='/api/profile') return {profile: MOCK.profiles[u.searchParams.get('name')]||{name:u.searchParams.get('name'),color:'#8a8a8a'}};
+  return {ok:true};
+}
+
 // ── 啟動 ──
 (async function(){
+  if(DESIGN){
+    ME = MOCK.me; $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+    await loadConversations();
+    return;
+  }
   if(TOKEN){
     try{ const me=await api('/api/me'); ME=me.name; $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); await loadConversations(); startPoll(); }
     catch(e){ localStorage.removeItem('bs-token'); TOKEN=''; }
