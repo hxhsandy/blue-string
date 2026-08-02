@@ -37,6 +37,11 @@
   #login button.enter{width:100%; padding:14px; border-radius:14px; font-size:16px; font-weight:700;
     background:#fff; color:var(--blue); box-shadow:0 6px 18px rgba(0,0,0,.2)}
   #login .err{color:#ffd9d9; font-size:13px; min-height:18px}
+  #loginKnown{display:flex; flex-direction:column; align-items:center; gap:6px}
+  #knownAv{width:88px; height:88px; border-radius:50%; border:3px solid rgba(255,255,255,.85); font-size:32px; box-shadow:0 4px 16px rgba(0,0,0,.25)}
+  #knownName{font-size:20px; font-weight:700; margin:6px 0 12px}
+  #loginKnown .enter{width:100%}
+  #login .switch{margin-top:10px; color:#fff; opacity:.75; font-size:13px; background:none}
 
   /* ── App 外殼 ── */
   #app{position:fixed; inset:0; display:flex; flex-direction:column}
@@ -91,6 +96,10 @@
   .pedit button{padding:13px; border-radius:13px; background:#fff; border:1px solid var(--line); font-size:15px; font-weight:600; color:var(--blue)}
   .pedit button:active{background:#eef4f7}
   .pedit .logout{color:#c2495a; border-color:#f0d3d8}
+  /* 個人頁編輯情境（點頭像換大頭、封面右上鈕換封面、點狀態文字改狀態）— 硯衡可再美化 */
+  .coveredit{position:absolute; top:calc(10px + var(--safe-t)); right:12px; width:34px; height:34px; border-radius:50%; background:rgba(0,0,0,.4); color:#fff; font-size:16px; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(2px)}
+  .pav.editable, .pstatus.editable{cursor:pointer}
+  .pav .avcam{position:absolute; right:-2px; bottom:-2px; background:var(--blue); color:#fff; border-radius:50%; width:26px; height:26px; font-size:12px; display:flex; align-items:center; justify-content:center; border:2px solid #fff}
   .toast{position:fixed; left:50%; bottom:calc(30px + var(--safe-b)); transform:translateX(-50%); background:rgba(20,40,55,.92); color:#fff; padding:10px 18px; border-radius:20px; font-size:14px; z-index:50; opacity:0; transition:opacity .2s}
   .toast.show{opacity:1}
 </style>
@@ -104,10 +113,20 @@
     <h1>傳音石</h1>
     <div class="en">BLUE&nbsp;STRING</div>
   </div>
-  <div class="tip">牽起兩顆心的那根線<br>貼上你的專屬 token 進來說說話</div>
+  <div class="tip">牽起兩顆心的那根線</div>
   <div class="card">
-    <input id="tokenInput" type="password" placeholder="貼上你的 token（bs_…）" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <button class="enter" id="loginBtn">進入傳音石</button>
+    <!-- 認得你：上次登入過→顯示頭像＋名字＋一鍵進入 -->
+    <div id="loginKnown" class="hidden">
+      <div class="avatar" id="knownAv"></div>
+      <div id="knownName"></div>
+      <button class="enter" id="knownBtn">以此帳號登入</button>
+      <button id="switchBtn" class="switch">登出 / 換帳號</button>
+    </div>
+    <!-- 首次或登出後：輸入 token -->
+    <div id="loginInput">
+      <input id="tokenInput" type="password" placeholder="貼上你的 token（bs_…）" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="enter" id="loginBtn">登入</button>
+    </div>
     <div class="err" id="loginErr"></div>
   </div>
 </section>
@@ -187,18 +206,43 @@ function fmtDay(ts){ const d=new Date(ts); return `${d.getMonth()+1}月${d.getDa
 // ── 登入 ──
 $('#loginBtn').onclick = doLogin;
 $('#tokenInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+$('#knownBtn').onclick = ()=>{ $('#loginErr').textContent=''; enterApp(); };
+$('#switchBtn').onclick = logout;
+
+async function enterApp(){
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  await loadConversations(); startPoll();
+}
+// 「認得你」畫面：頭像＋名字＋一鍵進入
+function showKnown(name, avatar){
+  $('#loginInput').classList.add('hidden'); $('#loginKnown').classList.remove('hidden');
+  $('#knownName').textContent = name;
+  const av = $('#knownAv');
+  if(avatar){ av.style.backgroundImage=`url('${avatar}')`; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; av.textContent=''; }
+  else { av.style.backgroundColor='#7fb3e6'; av.textContent=(name||'?').slice(0,2); }
+}
+function showInput(){ $('#loginKnown').classList.add('hidden'); $('#loginInput').classList.remove('hidden'); $('#tokenInput').value=''; }
+
 async function doLogin(){
   const t = $('#tokenInput').value.trim();
   if(!t){ $('#loginErr').textContent='請先貼上 token'; return; }
   TOKEN = t; $('#loginErr').textContent='驗證中…';
   try{
     const me = await api('/api/me');
-    ME = me.name; localStorage.setItem('bs-token', TOKEN);
-    $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
-    await loadConversations(); startPoll();
+    ME = me.name;
+    localStorage.setItem('bs-token', TOKEN); localStorage.setItem('bs-name', ME);
+    // 快取自己的頭像 → 下次登入頁直接亮出來
+    try{ const d = await api('/api/profile?name='+encodeURIComponent(ME)); if(d.profile && d.profile.avatar) localStorage.setItem('bs-avatar', d.profile.avatar); else localStorage.removeItem('bs-avatar'); }catch(e){}
+    await enterApp();
   }catch(e){ TOKEN=''; $('#loginErr').textContent='token 無效，再確認一下 🥲'; }
 }
-function logout(){ localStorage.removeItem('bs-token'); TOKEN=''; ME=null; stopPoll(); location.reload(); }
+// 登出＝清掉記住的 token，回到輸入畫面（下次要重新貼 token）
+function logout(){
+  localStorage.removeItem('bs-token'); localStorage.removeItem('bs-name'); localStorage.removeItem('bs-avatar');
+  TOKEN=''; ME=null; stopPoll();
+  $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); showInput();
+  $('#loginErr').textContent='';
+}
 
 // ── 對話清單 ──
 async function loadConversations(){
@@ -251,7 +295,7 @@ async function loadMessages(reset){
     const media = (m.images||[]).map(u=> /\.(mp4|webm)$/i.test(u)?`<video src="${u}" controls preload="metadata" style="max-width:200px"></video>`:`<img src="${u}" style="max-width:200px" loading="lazy">`).join('');
     const showWho = m.sender!==ME && curConv.type==='group';
     frag.push(`<div class="msg ${m.mine?'mine':'them'}">
-      ${m.mine?'':avatarHTML(m.sender)}
+      ${avatarHTML(m.sender)}
       <div>${showWho?`<div class="who">${enc(m.sender)}</div>`:''}
         <div class="bubble">${enc(m.text)}${media}</div></div>
       <div class="tmm">${fmtTime(m.at)}</div>
@@ -302,23 +346,21 @@ async function openProfile(name){
   const cover = p.cover ? `background-image:url('${p.cover}')` : '';
   const av = p.avatar ? `background-image:url('${p.avatar}')` : `background-color:${p.color||'#6b9bd0'}`;
   const avInner = p.avatar ? '' : initials(name);
-  const status = p.signature ? enc(p.signature) : (isMe?'點下方按鈕設定你的狀態':'（還沒有狀態）');
+  const status = p.signature ? enc(p.signature) : (isMe?'點這裡設定你的狀態 ✏️':'（還沒有狀態）');
   $('#profileScreen').innerHTML = `
-    <div class="pcover" style="${cover}"><div class="avatar pav" style="${av}">${avInner}</div></div>
+    <div class="pcover" style="${cover}">
+      ${isMe?`<button class="coveredit" id="edCv" title="換封面">✎</button>`:''}
+      <div class="avatar pav ${isMe?'editable':''}" style="${av}">${avInner}${isMe?'<span class="avcam">📷</span>':''}</div>
+    </div>
     <div class="pbody">
       <div class="pname">${enc(name)}</div>
-      <div class="pstatus ${p.signature?'':'empty'}">${status}</div>
-      ${isMe?`<div class="pedit">
-        <button id="edAv">🖼️ 換大頭貼</button>
-        <button id="edCv">🌆 換封面背景</button>
-        <button id="edSt">✏️ 編輯狀態欄</button>
-        <button class="logout" id="edOut">登出</button>
-      </div>`:''}
+      <div class="pstatus ${p.signature?'':'empty'} ${isMe?'editable':''}" id="pStatus">${status}</div>
+      ${isMe?`<div class="pedit"><button class="logout" id="edOut">登出</button></div>`:''}
     </div>`;
   if(isMe){
-    $('#edAv').onclick=()=>pickImg('avatar');
     $('#edCv').onclick=()=>pickImg('cover');
-    $('#edSt').onclick=editStatus;
+    $('#profileScreen').querySelector('.pav').onclick=()=>pickImg('avatar');
+    $('#pStatus').onclick=editStatus;
     $('#edOut').onclick=logout;
   }
   setView('profile', isMe?'我的檔案':name);
@@ -423,13 +465,25 @@ async function mockApi(path, opts={}){
 // ── 啟動 ──
 (async function(){
   if(DESIGN){
-    ME = MOCK.me; $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
-    await loadConversations();
+    ME = MOCK.me;
+    // 設計模式：預設直接進 App 讓硯衡調聊天/清單/個人頁；加 ?login 則停在登入頁調登入畫面
+    if(new URLSearchParams(location.search).has('login')){
+      showKnown(MOCK.me, '');   // 「認得你」狀態（假頭像用色塊，可調樣式）
+    } else {
+      $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+      await loadConversations();
+    }
     return;
   }
   if(TOKEN){
-    try{ const me=await api('/api/me'); ME=me.name; $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); await loadConversations(); startPoll(); }
-    catch(e){ localStorage.removeItem('bs-token'); TOKEN=''; }
+    // 有記住的 token → 不直接進場，先顯示「認得你」畫面，等你按「以此帳號登入」（朋友圈式）
+    try{
+      const me = await api('/api/me'); ME = me.name;
+      showKnown(ME, localStorage.getItem('bs-avatar') || '');
+    }
+    catch(e){ localStorage.removeItem('bs-token'); TOKEN=''; showInput(); }
+  } else {
+    showInput();
   }
 })();
 </script>
