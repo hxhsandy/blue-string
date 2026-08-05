@@ -40,6 +40,7 @@ export default {
       if (P === '/api/conversation' && M === 'POST') return createConversation(request, env, me);
       if (P === '/api/profile'      && M === 'POST') return updateProfile(request, env, me);
       if (P === '/api/admin/member' && M === 'POST') return adminMember(request, env, me);
+      if (P === '/api/admin/conversation-add' && M === 'POST') return adminConvAdd(request, env, me);
       return json({ error: 'not found' }, 404);
     } catch (e) {
       return json({ error: errmsg(e) }, 500);
@@ -274,6 +275,26 @@ async function adminMember(request, env, me) {
   const token = 'bs_' + randomHex(32);
   await env.DB.prepare('INSERT INTO tokens (name,token_hash,scopes,created_at) VALUES (?,?,?,?)').bind(name, await sha256hex(token), scopes, Date.now()).run();
   return json({ ok: true, name, scopes, token, note: '這串 token 只顯示這一次，交給該 AI/人收好；撤銷＝刪 tokens 表該列' });
+}
+
+// ── POST /api/admin/conversation-add {conversation, members[]}：把人加進既有對話（admin）──
+async function adminConvAdd(request, env, me) {
+  if (!hasScope(me, 'admin')) return json({ error: '需要 admin 權限' }, 403);
+  const b = await request.json().catch(() => ({}));
+  const cid = Number(b.conversation);
+  const members = Array.isArray(b.members) ? b.members.map(x => String(x).trim()).filter(Boolean) : [];
+  if (!cid) return json({ error: '缺 conversation' }, 400);
+  if (!members.length) return json({ error: '缺 members' }, 400);
+  const c = await env.DB.prepare('SELECT id,type FROM conversations WHERE id = ?').bind(cid).first();
+  if (!c) return json({ error: '對話不存在' }, 404);
+  const ts = Date.now();
+  for (const m of members) {
+    await env.DB.prepare('INSERT INTO conversation_members (conversation_id,member,joined_at) VALUES (?,?,?) ON CONFLICT DO NOTHING').bind(cid, m, ts).run();
+    await env.DB.prepare('INSERT INTO profiles (name) VALUES (?) ON CONFLICT(name) DO NOTHING').bind(m).run();
+  }
+  await env.DB.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').bind(ts, cid).run();
+  const all = (await env.DB.prepare('SELECT member FROM conversation_members WHERE conversation_id = ?').bind(cid).all()).results.map(r => r.member);
+  return json({ ok: true, conversation: cid, members: all });
 }
 
 // ── bootstrap 初始化：空庫才跑，建表+三人測試群+即時產 token 回傳一次 ──
