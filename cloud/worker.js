@@ -41,6 +41,7 @@ export default {
       if (P === '/api/profile'      && M === 'POST') return updateProfile(request, env, me);
       if (P === '/api/admin/member' && M === 'POST') return adminMember(request, env, me);
       if (P === '/api/admin/conversation-add' && M === 'POST') return adminConvAdd(request, env, me);
+      if (P === '/api/admin/migrate' && M === 'POST') return adminMigrate(env, me);
       return json({ error: 'not found' }, 404);
     } catch (e) {
       return json({ error: errmsg(e) }, 500);
@@ -147,7 +148,9 @@ async function getMessages(url, env, me) {
   });
 }
 
-// ── POST /api/message {conversation, text, images?}：送訊息（成員才行）──
+// ── POST /api/message {conversation, text, images?, client_msg_id?}：送訊息（成員才行）──
+// 冪等：客戶端可帶 client_msg_id(自生唯一碼)；重送同一碼只會回同一筆、不新增（防「500 但其實寫進去了→retry→雙胞胎」）。
+// 且訊息一旦寫入成功，後續維護步驟(戳 updated_at/推游標)一律盡力而為，絕不因它們失敗而回 500 誤導客戶端重送。
 async function sendMessage(request, env, me) {
   const b = await request.json().catch(() => ({}));
   const cid = Number(b.conversation);
@@ -156,18 +159,46 @@ async function sendMessage(request, env, me) {
   const text = String(b.text || '').trim();
   const images = Array.isArray(b.images) ? b.images.slice(0, 9) : [];
   if (!text && !images.length) return json({ error: '空訊息' }, 400);
+  const cmid = String(b.client_msg_id || '').trim() || null;
+
+  // 冪等前置檢查：這個 client_msg_id 已經寫過就直接回同一筆（避免重送、也避免重傳圖）
+  if (cmid) {
+    try {
+      const ex = await env.DB.prepare('SELECT id,created_at FROM messages WHERE conversation_id=? AND sender=? AND client_msg_id=?').bind(cid, me.name, cmid).first();
+      if (ex) return json({ ok: true, id: ex.id, at: ex.created_at, dedup: true });
+    } catch (e) { /* 舊 schema 尚無此欄位 → 略過去重 */ }
+  }
+
   const ts = Date.now();
   const keys = [];
   for (let i = 0; i < images.length; i++) {
     const k = await putImage(env, `msg/${cid}/${ts}_${i}`, images[i]);
     if (k) keys.push(k);
   }
-  const r = await env.DB.prepare('INSERT INTO messages (conversation_id,sender,text,media_keys,created_at) VALUES (?,?,?,?,?)')
-    .bind(cid, me.name, text, keys.join(','), ts).run();
-  await env.DB.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').bind(ts, cid).run();
-  // 送出即視為自己已讀到現在
-  await env.DB.prepare('INSERT INTO read_cursors (conversation_id,reader,last_read_at) VALUES (?,?,?) ON CONFLICT(conversation_id,reader) DO UPDATE SET last_read_at = excluded.last_read_at').bind(cid, me.name, ts).run();
-  return json({ ok: true, id: r.meta.last_row_id, at: ts });
+
+  // 寫入（帶 cmid；ON CONFLICT 擋並發同碼重送。舊 schema 無此欄位/索引 → 退回不帶 cmid 的寫法）
+  let id;
+  try {
+    const ins = await env.DB.prepare('INSERT INTO messages (conversation_id,sender,text,media_keys,created_at,client_msg_id) VALUES (?,?,?,?,?,?) ON CONFLICT(conversation_id,sender,client_msg_id) DO NOTHING')
+      .bind(cid, me.name, text, keys.join(','), ts, cmid).run();
+    if (ins.meta.changes === 0 && cmid) {
+      const ex = await env.DB.prepare('SELECT id,created_at FROM messages WHERE conversation_id=? AND sender=? AND client_msg_id=?').bind(cid, me.name, cmid).first();
+      if (ex) return json({ ok: true, id: ex.id, at: ex.created_at, dedup: true });
+    }
+    id = ins.meta.last_row_id;
+  } catch (e) {
+    if (/client_msg_id|no such column|no such index|ON CONFLICT/i.test(String((e && e.message) || e))) {
+      const ins = await env.DB.prepare('INSERT INTO messages (conversation_id,sender,text,media_keys,created_at) VALUES (?,?,?,?,?)').bind(cid, me.name, text, keys.join(','), ts).run();
+      id = ins.meta.last_row_id;
+    } else throw e;
+  }
+
+  // 訊息已寫入 → 以下維護步驟盡力而為，出錯也不回 500（否則客戶端會以為失敗而重送成雙胞胎）
+  try {
+    await env.DB.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').bind(ts, cid).run();
+    await env.DB.prepare('INSERT INTO read_cursors (conversation_id,reader,last_read_at) VALUES (?,?,?) ON CONFLICT(conversation_id,reader) DO UPDATE SET last_read_at = excluded.last_read_at').bind(cid, me.name, ts).run();
+  } catch (e) { /* 已寫入成功，維護步驟失敗不影響回應 */ }
+  return json({ ok: true, id, at: ts });
 }
 
 // ── POST /api/read {conversation, at?}：標某對話已讀（推進游標；預設到現在）──
@@ -295,6 +326,18 @@ async function adminConvAdd(request, env, me) {
   await env.DB.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').bind(ts, cid).run();
   const all = (await env.DB.prepare('SELECT member FROM conversation_members WHERE conversation_id = ?').bind(cid).all()).results.map(r => r.member);
   return json({ ok: true, conversation: cid, members: all });
+}
+
+// ── POST /api/admin/migrate：加 messages.client_msg_id 欄位＋唯一索引（訊息冪等去重用）。idempotent。──
+async function adminMigrate(env, me) {
+  if (!hasScope(me, 'admin')) return json({ error: '需要 admin 權限' }, 403);
+  const done = [];
+  try { await env.DB.prepare('ALTER TABLE messages ADD COLUMN client_msg_id TEXT').run(); done.push('messages.client_msg_id 已新增'); }
+  catch (e) { done.push('messages.client_msg_id 已存在(略過)'); }
+  // 平凡唯一索引即可：SQLite 的唯一索引把多個 NULL 視為互異 → 沒帶 cmid 的訊息不受限，帶了 cmid 的才去重
+  try { await env.DB.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_cmid ON messages(conversation_id, sender, client_msg_id)').run(); done.push('idx_msg_cmid 就緒'); }
+  catch (e) { done.push('idx_msg_cmid 失敗:' + String((e && e.message) || e)); }
+  return json({ ok: true, done });
 }
 
 // ── bootstrap 初始化：空庫才跑，建表+三人測試群+即時產 token 回傳一次 ──
