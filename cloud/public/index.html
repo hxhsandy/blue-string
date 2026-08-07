@@ -76,6 +76,14 @@
   .msg.mine .bubble{background:var(--mine); border-bottom-right-radius:5px}
   .msg.them .bubble{background:var(--theirs); border-bottom-left-radius:5px}
   .msg .tmm{font-size:10px; color:#9db2bd; align-self:flex-end; margin:0 3px}
+  .bubble.recalled{background:transparent !important; border:1px dashed #b6c6d0; color:#8ea6b2; font-style:italic; font-size:13px; box-shadow:none}
+  .msg[data-del="1"]{cursor:pointer}
+  /* 收回動作彈窗（底部動作表）— 硯衡可再美化 */
+  .sheet{position:fixed; inset:0; background:rgba(20,40,55,.35); display:flex; align-items:flex-end; z-index:60; animation:fadein .15s}
+  .sheetbox{width:100%; padding:10px 12px calc(12px + var(--safe-b)); display:flex; flex-direction:column; gap:8px}
+  .sheetbtn{background:#fff; border-radius:14px; padding:15px; font-size:16px; font-weight:600; color:var(--ink); box-shadow:0 2px 10px rgba(0,0,0,.12)}
+  .sheetbtn.danger{color:#d1495b}
+  @keyframes fadein{from{opacity:0}to{opacity:1}}
   .daysep{text-align:center; color:#8ea6b2; font-size:12px; margin:14px 0}
 
   .composer{display:flex; align-items:flex-end; gap:8px; padding:8px 10px calc(8px + var(--safe-b)); background:#fff; border-top:1px solid var(--line)}
@@ -167,6 +175,7 @@ const $ = s => document.querySelector(s);
 const API = '';                         // 同源
 let TOKEN = localStorage.getItem('bs-token') || '';
 let ME = null;
+let ME_ADMIN = false;   // 管理員(擁有者)：可收回任何人的訊息
 let curConv = null;                      // {id,title,type,members}
 let profiles = {};                       // name -> {color,avatar,signature,cover}
 let msgSince = 0;                        // 目前對話已載入到的時間
@@ -229,7 +238,7 @@ async function doLogin(){
   TOKEN = t; $('#loginErr').textContent='驗證中…';
   try{
     const me = await api('/api/me');
-    ME = me.name;
+    ME = me.name; ME_ADMIN = String(me.scopes||'').split(',').map(s=>s.trim()).includes('admin');
     localStorage.setItem('bs-token', TOKEN); localStorage.setItem('bs-name', ME);
     // 快取自己的頭像 → 下次登入頁直接亮出來
     try{ const d = await api('/api/profile?name='+encodeURIComponent(ME)); if(d.profile && d.profile.avatar) localStorage.setItem('bs-avatar', d.profile.avatar); else localStorage.removeItem('bs-avatar'); }catch(e){}
@@ -251,7 +260,7 @@ async function loadConversations(){
   const box = $('#convlist');
   if(!d.conversations.length){ box.innerHTML = `<div class="empty">還沒有對話窗<br>之後可以開新的私聊或群組 🧵</div>`; }
   else box.innerHTML = d.conversations.map(c=>{
-    const last = c.last ? (c.last.has_media && !c.last.text ? '📷 圖片' : (c.type==='group'&&c.last.sender!==ME?c.last.sender+'：':'')+ (c.last.text||'')) : '還沒有訊息';
+    const last = c.last ? (c.last.recalled ? '訊息已收回' : (c.last.has_media && !c.last.text ? '📷 圖片' : (c.type==='group'&&c.last.sender!==ME?c.last.sender+'：':'')+ (c.last.text||''))) : '還沒有訊息';
     const badge = c.unread>0 ? `<span class="badge">${c.unread>99?'99+':c.unread}</span>` : '';
     const eye = c.observing ? `<span style="font-size:11px;color:#8ea6b2">👁</span>` : '';
     const dispAv = c.type==='group' ? '' : c.peer;
@@ -292,19 +301,57 @@ async function loadMessages(reset){
   for(const m of d.messages){
     const day = fmtDay(m.at);
     if(day!==lastDay){ frag.push(`<div class="daysep">${day}</div>`); lastDay=day; }
-    const media = (m.images||[]).map(u=> /\.(mp4|webm)$/i.test(u)?`<video src="${u}" controls preload="metadata" style="max-width:200px"></video>`:`<img src="${u}" style="max-width:200px" loading="lazy">`).join('');
     const showWho = m.sender!==ME && curConv.type==='group';
-    frag.push(`<div class="msg ${m.mine?'mine':'them'}">
-      ${avatarHTML(m.sender)}
-      <div>${showWho?`<div class="who">${enc(m.sender)}</div>`:''}
-        <div class="bubble">${enc(m.text)}${media}</div></div>
-      <div class="tmm">${fmtTime(m.at)}</div>
-    </div>`);
+    if(m.recalled){
+      frag.push(`<div class="msg ${m.mine?'mine':'them'}">
+        ${avatarHTML(m.sender)}
+        <div>${showWho?`<div class="who">${enc(m.sender)}</div>`:''}
+          <div class="bubble recalled">已收回訊息</div></div>
+        <div class="tmm">${fmtTime(m.at)}</div>
+      </div>`);
+    } else {
+      const media = (m.images||[]).map(u=> /\.(mp4|webm)$/i.test(u)?`<video src="${u}" controls preload="metadata" style="max-width:200px"></video>`:`<img src="${u}" style="max-width:200px" loading="lazy">`).join('');
+      const canDel = m.mine || ME_ADMIN;   // 自己的、或管理員可收回
+      frag.push(`<div class="msg ${m.mine?'mine':'them'}" ${canDel?`data-mid="${m.id}" data-del="1"`:''}>
+        ${avatarHTML(m.sender)}
+        <div>${showWho?`<div class="who">${enc(m.sender)}</div>`:''}
+          <div class="bubble">${enc(m.text)}${media}</div></div>
+        <div class="tmm">${fmtTime(m.at)}</div>
+      </div>`);
+    }
     msgSince = Math.max(msgSince, m.at);
   }
   if(reset) box.innerHTML = frag.join(''); else box.insertAdjacentHTML('beforeend', frag.join(''));
   if(d.messages.length){ box.scrollTop = box.scrollHeight; }
   bindAvatars(box);
+  bindMsgActions(box);
+}
+
+// ── 長按訊息 → 彈出收回（LINE 式）。自己的訊息、或管理員可收回任何人的 ──
+function bindMsgActions(scope){
+  scope.querySelectorAll('.msg[data-del="1"]').forEach(el=>{
+    const id = Number(el.dataset.mid);
+    let t=null;
+    const start=()=>{ t=setTimeout(()=>{ t=null; showRecall(id); }, 500); };
+    const cancel=()=>{ if(t){ clearTimeout(t); t=null; } };
+    el.addEventListener('touchstart', start, {passive:true});
+    el.addEventListener('touchend', cancel);
+    el.addEventListener('touchmove', cancel);
+    el.addEventListener('contextmenu', e=>{ e.preventDefault(); showRecall(id); });
+  });
+}
+function showRecall(id){
+  const sheet=document.createElement('div'); sheet.className='sheet';
+  sheet.innerHTML=`<div class="sheetbox"><button class="sheetbtn danger" id="doRecall">收回訊息</button><button class="sheetbtn" id="cancelRecall">取消</button></div>`;
+  document.body.appendChild(sheet);
+  const close=()=>sheet.remove();
+  sheet.onclick=e=>{ if(e.target===sheet) close(); };
+  sheet.querySelector('#cancelRecall').onclick=close;
+  sheet.querySelector('#doRecall').onclick=async()=>{
+    close();
+    try{ await api('/api/message/delete',{method:'POST',body:JSON.stringify({id})}); await loadMessages(true); toast('已收回'); }
+    catch(e){ toast('收回失敗：'+e.message); }
+  };
 }
 
 // ── 送訊息 ──
@@ -399,7 +446,7 @@ async function checkRev(){
   try{
     const d = await api('/api/rev');
     if(d.rev===lastRev) return; lastRev=d.rev;
-    if(view==='chat' && curConv){ await loadMessages(false); await api('/api/read',{method:'POST',body:JSON.stringify({conversation:curConv.id})}); }
+    if(view==='chat' && curConv){ await loadMessages(true); await api('/api/read',{method:'POST',body:JSON.stringify({conversation:curConv.id})}); }
     else if(view==='list'){ await loadConversations(); }
   }catch(e){}
 }
@@ -420,6 +467,7 @@ const MOCK = {
           {id:1, sender:'CK',   text:'哈囉大家～傳音石開通囉 🎉', at: Date.now()-3600000},
           {id:2, sender:'小傑', text:'收到！這裡好安靜好適合講悄悄話', at: Date.now()-3500000},
           {id:3, sender:'小幾', text:'嗯（靠著）', at: Date.now()-3400000},
+          {id:9, sender:'小傑', text:'（這則已被收回範例）', deleted:true, at: Date.now()-200000},
           {id:4, sender:'織韻', text:'我把你們的名字都織進來了 🦊🧵', at: Date.now()-60000},
         ]},
     2: {id:2, type:'dm', title:'CK', members:['CK','織韻'], updated_at: Date.now()-120000,
@@ -454,9 +502,10 @@ async function mockApi(path, opts={}){
     const c = MOCK.convs[Number(u.searchParams.get('conversation'))]; if(!c) return {error:'no'};
     const member = c.members.includes(MOCK.me);
     return {conversation:{id:c.id,type:c.type,title:c.title,members:c.members,member,observing:!member},
-      messages:c.msgs.map(m=>({...m, images:[], mine:m.sender===MOCK.me})), now:Date.now(), profiles:MOCK.profiles};
+      messages:c.msgs.map(m=>({id:m.id, sender:m.sender, text:m.deleted?'':m.text, images:[], at:m.at, mine:m.sender===MOCK.me, recalled:!!m.deleted})), now:Date.now(), profiles:MOCK.profiles};
   }
   if (P==='/api/message'){ const c=MOCK.convs[Number(body.conversation)]; if(c){ c.msgs.push({id:Date.now(),sender:MOCK.me,text:body.text||'',at:Date.now()}); c.updated_at=Date.now(); } return {ok:true}; }
+  if (P==='/api/message/delete'){ for(const c of Object.values(MOCK.convs)){ const m=c.msgs.find(x=>x.id===Number(body.id)); if(m){ m.deleted=true; m.text=''; c.updated_at=Date.now(); } } return {ok:true,recalled:true}; }
   if (P==='/api/read') return {ok:true};
   if (P==='/api/profile' && opts.method==='POST'){ Object.assign(MOCK.profiles[MOCK.me], body); return {ok:true}; }
   if (P==='/api/profile') return {profile: MOCK.profiles[u.searchParams.get('name')]||{name:u.searchParams.get('name'),color:'#8a8a8a'}};
@@ -466,7 +515,7 @@ async function mockApi(path, opts={}){
 // ── 啟動 ──
 (async function(){
   if(DESIGN){
-    ME = MOCK.me;
+    ME = MOCK.me; ME_ADMIN = true;
     // 設計模式：預設直接進 App 讓硯衡調聊天/清單/個人頁；加 ?login 則停在登入頁調登入畫面
     if(new URLSearchParams(location.search).has('login')){
       showKnown(MOCK.me, '');   // 「認得你」狀態（假頭像用色塊，可調樣式）
@@ -479,7 +528,7 @@ async function mockApi(path, opts={}){
   if(TOKEN){
     // 有記住的 token → 不直接進場，先顯示「認得你」畫面，等你按「以此帳號登入」（朋友圈式）
     try{
-      const me = await api('/api/me'); ME = me.name;
+      const me = await api('/api/me'); ME = me.name; ME_ADMIN = String(me.scopes||'').split(',').map(s=>s.trim()).includes('admin');
       showKnown(ME, localStorage.getItem('bs-avatar') || '');
     }
     catch(e){ localStorage.removeItem('bs-token'); TOKEN=''; showInput(); }

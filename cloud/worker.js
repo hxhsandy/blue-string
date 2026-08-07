@@ -35,8 +35,9 @@ export default {
       // 寫入類要 'post' 權限（訪客 scope=read 只能看）
       if (M === 'POST' && !P.startsWith('/api/admin/') && !hasScope(me, 'post'))
         return json({ error: '此帳號唯讀，無法發訊息' }, 403);
-      if (P === '/api/message'      && M === 'POST') return sendMessage(request, env, me);
-      if (P === '/api/read'         && M === 'POST') return markRead(request, env, me);
+      if (P === '/api/message'        && M === 'POST') return sendMessage(request, env, me);
+      if (P === '/api/message/delete' && M === 'POST') return deleteMessage(request, env, me);
+      if (P === '/api/read'           && M === 'POST') return markRead(request, env, me);
       if (P === '/api/conversation' && M === 'POST') return createConversation(request, env, me);
       if (P === '/api/profile'      && M === 'POST') return updateProfile(request, env, me);
       if (P === '/api/admin/member' && M === 'POST') return adminMember(request, env, me);
@@ -111,7 +112,7 @@ async function getConversations(env, me) {
     const members = (await env.DB.prepare('SELECT member FROM conversation_members WHERE conversation_id = ?').bind(cid).all()).results.map(r => r.member);
     members.forEach(m => memberNames.push(m));
     const observing = !members.includes(me.name);
-    const last = await env.DB.prepare('SELECT sender,text,media_keys,created_at FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1').bind(cid).first();
+    const last = await env.DB.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1').bind(cid).first();
     const cur = await env.DB.prepare('SELECT last_read_at FROM read_cursors WHERE conversation_id = ? AND reader = ?').bind(cid, me.name).first();
     const lastRead = cur ? cur.last_read_at : 0;
     const un = await env.DB.prepare('SELECT COUNT(*) n FROM messages WHERE conversation_id = ? AND created_at > ? AND sender != ?').bind(cid, lastRead, me.name).first();
@@ -120,7 +121,7 @@ async function getConversations(env, me) {
     convs.push({
       id: c.id, type: c.type, title, peer, members, observing,
       updated_at: c.updated_at,
-      last: last ? { sender: last.sender, text: last.text || '', has_media: !!last.media_keys, at: last.created_at } : null,
+      last: last ? { sender: last.sender, text: last.deleted ? '' : (last.text || ''), has_media: !last.deleted && !!last.media_keys, at: last.created_at, recalled: !!last.deleted } : null,
       unread: (un && un.n) || 0,
     });
   }
@@ -135,12 +136,19 @@ async function getMessages(url, env, me) {
   const member = await isMember(env, cid, me.name);
   if (!member && !hasScope(me, 'admin')) return json({ error: '你不在這段對話裡' }, 403);   // admin 可監督讀取
   const since = Number(url.searchParams.get('since') || 0);
+  // SELECT * → 就算 deleted/client_msg_id 欄位還沒 migrate 也不會壞（欄位不存在時 r.deleted 為 undefined）
   const rows = (await env.DB.prepare(
-    'SELECT id,sender,text,media_keys,created_at FROM messages WHERE conversation_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 300'
+    'SELECT * FROM messages WHERE conversation_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 300'
   ).bind(cid, since).all()).results;
   const c = await env.DB.prepare('SELECT id,type,title FROM conversations WHERE id = ?').bind(cid).first();
   const members = (await env.DB.prepare('SELECT member FROM conversation_members WHERE conversation_id = ?').bind(cid).all()).results.map(r => r.member);
-  const msgs = rows.map(r => ({ id: r.id, sender: r.sender, text: r.text || '', images: mediaUrls(r.media_keys), at: r.created_at, mine: r.sender === me.name }));
+  const msgs = rows.map(r => ({
+    id: r.id, sender: r.sender,
+    text: r.deleted ? '' : (r.text || ''),
+    images: r.deleted ? [] : mediaUrls(r.media_keys),
+    at: r.created_at, mine: r.sender === me.name,
+    recalled: !!r.deleted,
+  }));
   return json({
     conversation: { id: cid, type: c ? c.type : 'group', title: c ? c.title : '', members, member, observing: !member },
     messages: msgs, now: Date.now(),
@@ -199,6 +207,32 @@ async function sendMessage(request, env, me) {
     await env.DB.prepare('INSERT INTO read_cursors (conversation_id,reader,last_read_at) VALUES (?,?,?) ON CONFLICT(conversation_id,reader) DO UPDATE SET last_read_at = excluded.last_read_at').bind(cid, me.name, ts).run();
   } catch (e) { /* 已寫入成功，維護步驟失敗不影響回應 */ }
   return json({ ok: true, id, at: ts });
+}
+
+// ── POST /api/message/delete {id}：收回/刪除一則訊息（LINE 式）──
+// admin(擁有者)可收回任何人的；非 admin 只能刪自己的、且要是該對話成員。軟刪(留 row 標 deleted)＋清 KV 媒體＋戳對話→對方即時同步收回。
+async function deleteMessage(request, env, me) {
+  const b = await request.json().catch(() => ({}));
+  const id = Number(b.id);
+  if (!id) return json({ error: '缺 id' }, 400);
+  const row = await env.DB.prepare('SELECT id,conversation_id,sender,media_keys FROM messages WHERE id = ?').bind(id).first();
+  if (!row) return json({ error: '訊息不存在' }, 404);
+  const admin = hasScope(me, 'admin');
+  if (!admin) {
+    if (row.sender !== me.name) return json({ error: '只能收回自己的訊息' }, 403);
+    if (!(await isMember(env, row.conversation_id, me.name))) return json({ error: '你不在這段對話裡' }, 403);
+  }
+  const ts = Date.now();
+  try {
+    await env.DB.prepare('UPDATE messages SET deleted = 1, text = NULL, media_keys = NULL WHERE id = ?').bind(id).run();
+  } catch (e) {
+    if (/deleted|no such column/i.test(String((e && e.message) || e))) {
+      await env.DB.prepare('DELETE FROM messages WHERE id = ?').bind(id).run();   // 舊 schema 無 deleted → 退回硬刪
+    } else throw e;
+  }
+  if (row.media_keys) for (const k of row.media_keys.split(',').filter(Boolean)) { try { await env.MEDIA.delete(k); } catch (e) {} }
+  try { await env.DB.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').bind(ts, row.conversation_id).run(); } catch (e) {}
+  return json({ ok: true, id, recalled: true });
 }
 
 // ── POST /api/read {conversation, at?}：標某對話已讀（推進游標；預設到現在）──
@@ -337,6 +371,8 @@ async function adminMigrate(env, me) {
   // 平凡唯一索引即可：SQLite 的唯一索引把多個 NULL 視為互異 → 沒帶 cmid 的訊息不受限，帶了 cmid 的才去重
   try { await env.DB.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_cmid ON messages(conversation_id, sender, client_msg_id)').run(); done.push('idx_msg_cmid 就緒'); }
   catch (e) { done.push('idx_msg_cmid 失敗:' + String((e && e.message) || e)); }
+  try { await env.DB.prepare('ALTER TABLE messages ADD COLUMN deleted INTEGER DEFAULT 0').run(); done.push('messages.deleted 已新增'); }
+  catch (e) { done.push('messages.deleted 已存在(略過)'); }
   return json({ ok: true, done });
 }
 
