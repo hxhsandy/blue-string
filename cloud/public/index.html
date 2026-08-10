@@ -23,11 +23,13 @@
   #login{position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
     padding:calc(24px + var(--safe-t)) 28px calc(24px + var(--safe-b));
     background:
-      radial-gradient(120% 80% at 50% 12%, rgba(127,179,230,.55), transparent 60%),
-      linear-gradient(160deg,#22405c 0%, #35618c 45%, #4a90d9 100%);
+      linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.18)),
+      url("ui/login_bg.png") center/cover no-repeat,
+      linear-gradient(180deg,#dff3ff 0%,#f7fcff 100%);
     color:#fff; text-align:center}
-  #login .mark{font-size:54px; filter:drop-shadow(0 4px 10px rgba(0,0,0,.25))}
-  #login h1{margin:0; font-size:27px; letter-spacing:2px; font-weight:700}
+  #login .mark{width:92px; height:92px; border-radius:24px; overflow:hidden; box-shadow:0 10px 28px rgba(57,126,190,.22); filter:drop-shadow(0 6px 16px rgba(80,160,220,.22))}
+  #login .mark img{width:100%; height:100%; display:block; object-fit:cover}
+  #login h1{margin:0; font-size:27px; letter-spacing:2px; font-weight:700; color:#2d6fae; text-shadow:0 2px 10px rgba(255,255,255,.9)}
   #login .en{opacity:.8; letter-spacing:5px; font-size:13px; margin-top:-4px}
   #login .tip{opacity:.85; font-size:13px; line-height:1.6; max-width:300px}
   #login .card{width:100%; max-width:340px; display:flex; flex-direction:column; gap:12px; margin-top:6px}
@@ -116,12 +118,10 @@
 
 <!-- 登入頁 -->
 <section id="login">
-  <div class="mark">🧵💙</div>
+  <div class="mark"><img src="ui/app_icon.png" alt=""></div>
   <div>
     <h1>傳音石</h1>
-    <div class="en">BLUE&nbsp;STRING</div>
   </div>
-  <div class="tip">牽起兩顆心的那根線</div>
   <div class="card">
     <!-- 認得你：上次登入過→顯示頭像＋名字＋一鍵進入 -->
     <div id="loginKnown" class="hidden">
