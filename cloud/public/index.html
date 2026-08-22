@@ -66,10 +66,10 @@
 
   /* ── App 外殼 ── */
   #app{position:fixed; inset:0; display:flex; flex-direction:column; z-index:1}
-  .topbar{position:relative; display:flex; align-items:center; gap:10px; padding:var(--safe-t) 14px 10px;
+  .topbar{position:relative; display:flex; align-items:center; gap:10px; padding:calc(10px + var(--safe-t)) 14px 10px;
     background:linear-gradient(180deg,#4a90d9,#3f7fc1); color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.12); z-index:5}
-  .topbar::after{content:""; position:absolute; left:0; right:0; bottom:-19px; height:38px;
-    background:url("ui/top_glow_divider.png") center/100% 38px no-repeat; pointer-events:none; z-index:1}
+  .topbar::after{content:""; position:absolute; left:0; right:0; bottom:-9px; height:19px;
+    background:url("ui/top_glow_divider.jpg") center/100% 19px no-repeat; pointer-events:none; z-index:1}
   .topbar .back{font-size:22px; width:30px; text-align:left}
   .topbar .title{font-weight:700; font-size:17px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
   .topbar .act{font-size:20px; width:30px; text-align:right}
@@ -99,7 +99,7 @@
   body[data-view="chat"]{background:var(--bs-chat-bg)}
   body[data-view="chat"] #app{background:transparent}
   body[data-view="chat"] .topbar{background:transparent; box-shadow:none; padding-bottom:18px}
-  body[data-view="chat"] .topbar .title{text-align:center; font-family:"Noto Serif TC",serif; font-size:.675rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
+  body[data-view="chat"] .topbar .title{text-align:center; font-family:"Noto Serif TC",serif; font-size:1.35rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
   body[data-view="chat"] #chatScreen{position:relative; flex:1; overflow:hidden; background:transparent}
   #msgScreen{padding:28px 20px calc(108px + var(--safe-b)); scroll-padding-bottom:calc(108px + var(--safe-b))}
   .msg{display:flex; gap:10px; margin:13px 0; align-items:flex-end; width:100%}
@@ -137,6 +137,8 @@
   .composer .send::before{content:"↑"; font-size:24px; line-height:44px}
   .composer .send:disabled{opacity:.4}
   @media (max-width:767px){
+    .topbar{padding:var(--safe-t) 14px 10px}
+    body[data-view="chat"] .topbar .title{position:relative; top:5px; font-size:1rem}
     body[data-view="chat"] .composer{bottom:8px}
     body[data-view="chat"] #msgScreen{padding-bottom:104px; scroll-padding-bottom:104px}
   }
