@@ -31,7 +31,11 @@
   #login{position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:calc(24px + var(--safe-t)) 24px calc(24px + var(--safe-b));
     background:transparent; color:#58627f; text-align:center; isolation:isolate}
+  html:has(#login:not(.hidden)){background:url("ui/login_bg.png") center/cover no-repeat, var(--bs-chat-bg)}
+  body:has(#login:not(.hidden)){background:url("ui/login_bg.png") center/cover no-repeat, var(--bs-chat-bg)}
   #login::before{content:""; position:fixed; left:0; right:0; top:0; bottom:calc(-1 * var(--safe-b));
+    z-index:0; pointer-events:none; background:url("ui/login_bg.png") center/cover no-repeat, var(--bs-chat-bg)}
+  #login .login-bg{position:fixed; left:0; right:0; top:0; bottom:calc(-1 * var(--safe-b));
     z-index:0; pointer-events:none; background:url("ui/login_bg.png") center/cover no-repeat, var(--bs-chat-bg)}
   #login > *{position:relative; z-index:1}
   #login h1{font-family:"Noto Serif TC",serif; font-weight:900; font-size:2.1rem;
@@ -171,6 +175,7 @@
 
 <!-- 登入頁 -->
 <section id="login">
+  <div class="login-bg" aria-hidden="true"></div>
   <div>
     <h1>傳音石</h1>
     <div class="en">連結彼此 · 訊息直達</div>
