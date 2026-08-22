@@ -95,7 +95,7 @@
   .empty{color:var(--sub); text-align:center; padding:50px 30px; line-height:1.8; font-size:14px}
 
   /* ── 聊天視窗 ── */
-  html:has(body[data-view="chat"]){background:var(--bs-chat-bg)}
+  html:has(body[data-view="chat"]){background:#f2ddea}
   body[data-view="chat"]{background:var(--bs-chat-bg)}
   body[data-view="chat"] #app{background:transparent}
   body[data-view="chat"] .topbar{background:transparent; box-shadow:none; padding-bottom:18px}
@@ -128,7 +128,7 @@
 
   .composer{display:flex; align-items:center; gap:10px; position:fixed; left:16px; right:16px; bottom:calc(6px + var(--safe-b)); z-index:20;
     padding:12px 14px; min-height:64px; background:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.76);
-    border-radius:28px; box-shadow:0 12px 34px rgba(83,103,168,.22), inset 0 0 0 1px rgba(255,255,255,.32); backdrop-filter:blur(16px)}
+    border-radius:28px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.32); backdrop-filter:blur(16px)}
   .composer .plus{font-size:26px; color:#6f75d8; width:32px; text-align:center; line-height:1}
   .composer textarea{flex:1; resize:none; border:0; border-radius:18px; padding:8px 2px; font-size:16px; max-height:96px; outline:none; font-family:inherit; background:transparent; color:#56607f}
   .composer textarea::placeholder{color:rgba(86,96,127,.52)}
