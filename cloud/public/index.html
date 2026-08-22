@@ -135,6 +135,10 @@
     box-shadow:0 8px 18px rgba(101,101,213,.32)}
   .composer .send::before{content:"↑"; font-size:24px; line-height:44px}
   .composer .send:disabled{opacity:.4}
+  @media (max-width:767px){
+    body[data-view="chat"] .composer{bottom:8px}
+    body[data-view="chat"] #msgScreen{padding-bottom:104px; scroll-padding-bottom:104px}
+  }
 
   /* ── 個人頁（像登入頁：封面當背景、大頭在中間、狀態欄在登入鈕的位置）── */
   #profile{background:var(--bg)}
