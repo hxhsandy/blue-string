@@ -17,6 +17,7 @@
     --ink:#20303a; --sub:#6b8492; --line:#dbe6ec; --bg:#eef4f7;
     --blue:#3f7fc1; --ribbon:#4a90d9; --ribbon2:#7fb3e6; --mine:#cfe8ff; --theirs:#ffffff;
     --safe-b: env(safe-area-inset-bottom,0px); --safe-t: env(safe-area-inset-top,0px);
+    --bs-chat-bg:linear-gradient(180deg,#5f82c8 0%,#aeb7ee 48%,#f2ddea 100%);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{margin:0; height:100%; height:100dvh}
@@ -65,7 +66,7 @@
     letter-spacing:.3em; text-indent:.3em; background:none; display:block}
 
   /* ── App 外殼 ── */
-  #app{position:fixed; inset:0; display:flex; flex-direction:column}
+  #app{position:fixed; inset:0; display:flex; flex-direction:column; z-index:1}
   .topbar{display:flex; align-items:center; gap:10px; padding:calc(10px + var(--safe-t)) 14px 10px;
     background:linear-gradient(180deg,#4a90d9,#3f7fc1); color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.12); z-index:5}
   .topbar .back{font-size:22px; width:30px; text-align:left}
@@ -74,8 +75,15 @@
   .screen{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch}
 
   /* ── 對話清單 ── */
-  .conv{display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid var(--line); background:#fff}
-  .conv:active{background:#f2f7fb}
+  html:has(body[data-view="list"]){background:#f2ddea}
+  body[data-view="list"]{background:var(--bs-chat-bg)}
+  body[data-view="list"] #app{background:transparent}
+  body[data-view="list"] .topbar{background:transparent; box-shadow:none}
+  body[data-view="list"] #listScreen{padding:10px 14px calc(18px + var(--safe-b)); background:transparent}
+  .conv{display:flex; align-items:center; gap:12px; padding:13px 15px; margin:10px 0; border:1px solid rgba(255,255,255,.58);
+    border-radius:22px; background:rgba(255,255,255,.58); box-shadow:0 10px 26px rgba(92,106,166,.12), inset 0 0 0 1px rgba(255,255,255,.22);
+    backdrop-filter:blur(12px)}
+  .conv:active{background:rgba(255,255,255,.76)}
   .avatar{width:48px; height:48px; border-radius:50%; flex:none; background:#cdd9e0 center/cover; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:18px}
   .conv .mid{flex:1; min-width:0}
   .conv .nm{font-weight:600; font-size:15.5px; display:flex; align-items:center; gap:6px}
@@ -87,16 +95,14 @@
 
   /* ── 聊天視窗 ── */
   html:has(body[data-view="chat"]){background:#f2ddea}
-  body[data-view="chat"]{background:#f2ddea}
-  body[data-view="chat"] #app{background:linear-gradient(180deg,#5f82c8 0%,#aeb7ee 48%,#f2ddea 100%)}
+  body[data-view="chat"]{background:var(--bs-chat-bg)}
+  body[data-view="chat"] #app{background:transparent}
   body[data-view="chat"] .topbar{background:transparent; box-shadow:none; padding-bottom:18px}
   body[data-view="chat"] .topbar .title{text-align:center; font-family:"Noto Serif TC",serif; font-size:1.35rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
   body[data-view="chat"] #chatScreen{position:relative; flex:1; overflow:hidden; background:transparent}
   body[data-view="chat"] #chatScreen::before{content:""; position:fixed; left:0; right:0; top:0; bottom:calc(-1 * var(--safe-b));
     pointer-events:none; z-index:-1; background:
-      radial-gradient(circle at 78% 10%,rgba(255,255,255,.55) 0 2px,transparent 3px),
-      radial-gradient(circle at 18% 28%,rgba(255,255,255,.45) 0 2px,transparent 3px),
-      linear-gradient(180deg,#5f82c8 0%,#aeb7ee 48%,#f2ddea 100%)}
+      var(--bs-chat-bg)}
   #msgScreen{padding:18px 20px calc(108px + var(--safe-b)); scroll-padding-bottom:calc(108px + var(--safe-b))}
   .msg{display:flex; gap:10px; margin:13px 0; align-items:flex-end; width:100%}
   .msg > div:not(.avatar):not(.tmm){min-width:0; max-width:min(76vw,520px); display:flex; flex-direction:column; align-items:flex-start}
@@ -151,6 +157,18 @@
   .pav .avcam{position:absolute; right:-2px; bottom:-2px; background:var(--blue); color:#fff; border-radius:50%; width:26px; height:26px; font-size:12px; display:flex; align-items:center; justify-content:center; border:2px solid #fff}
   .toast{position:fixed; left:50%; bottom:calc(30px + var(--safe-b)); transform:translateX(-50%); background:rgba(20,40,55,.92); color:#fff; padding:10px 18px; border-radius:20px; font-size:14px; z-index:50; opacity:0; transition:opacity .2s}
   .toast.show{opacity:1}
+
+  /* ── 藍線背景星星 / 點擊星星 ── */
+  .fall-star{position:fixed; top:-4vh; z-index:0; pointer-events:none; color:rgba(255,255,255,.72);
+    text-shadow:0 0 10px rgba(255,255,255,.62); animation:bsFall linear infinite}
+  @keyframes bsFall{
+    0%{transform:translateY(-4vh) translateX(0) rotate(0deg); opacity:0}
+    10%{opacity:.72}
+    100%{transform:translateY(108vh) translateX(var(--sway,40px)) rotate(260deg); opacity:.08}
+  }
+  .tap-star{position:fixed; z-index:80; pointer-events:none; will-change:transform,opacity; font-size:15px; line-height:1;
+    text-shadow:0 0 8px currentColor}
+  @media (prefers-reduced-motion: reduce){.fall-star{display:none}}
 </style>
 </head>
 <body>
@@ -551,8 +569,48 @@ async function mockApi(path, opts={}){
   return {ok:true};
 }
 
+// ── 藍線背景星星 / 點擊星星 ──
+function initBlueStringFx(){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const glyphs=["✦","✧","✶"];
+  for(let i=0;i<14;i++){
+    const p=document.createElement("div");
+    p.className="fall-star";
+    p.textContent=glyphs[i%glyphs.length];
+    p.style.left=Math.random()*100+"vw";
+    p.style.fontSize=(8+Math.random()*9)+"px";
+    p.style.setProperty("--sway",(Math.random()*100-50)+"px");
+    p.style.animationDuration=(10+Math.random()*12)+"s";
+    p.style.animationDelay=(-Math.random()*16)+"s";
+    p.style.opacity=.34+Math.random()*.36;
+    document.body.appendChild(p);
+  }
+  const colors=["#ffffff","#cfe8ff","#d7ccff","#ffd9f0","#fff2b8"];
+  addEventListener("pointerdown",e=>{
+    if(e.target.closest && e.target.closest("textarea,input")) return;
+    const n=8+Math.floor(Math.random()*4);
+    for(let i=0;i<n;i++){
+      const s=document.createElement("div");
+      s.className="tap-star";
+      s.textContent=Math.random()<.55?"✦":"✧";
+      s.style.color=colors[i%colors.length];
+      s.style.left=e.clientX+"px";
+      s.style.top=e.clientY+"px";
+      document.body.appendChild(s);
+      const ang=Math.random()*Math.PI*2, dist=30+Math.random()*52;
+      const dx=Math.cos(ang)*dist, dy=Math.sin(ang)*dist-14;
+      s.animate([
+        {transform:"translate(-50%,-50%) scale(.35) rotate(0deg)",opacity:1},
+        {transform:`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${.9+Math.random()*.55}) rotate(${Math.random()*220-110}deg)`,opacity:0}
+      ],{duration:520+Math.random()*360,easing:"cubic-bezier(.16,.84,.44,1)"})
+      .onfinish=()=>s.remove();
+    }
+  },{passive:true});
+}
+
 // ── 啟動 ──
 (async function(){
+  initBlueStringFx();
   if(DESIGN){
     ME = MOCK.me; ME_ADMIN = true;
     // 設計模式：預設直接進 App 讓硯衡調聊天/清單/個人頁；加 ?login 則停在登入頁調登入畫面
