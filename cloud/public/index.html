@@ -73,6 +73,7 @@
   .topbar .back{font-size:22px; width:30px; text-align:left}
   .topbar .title{font-weight:700; font-size:17px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
   .topbar .act{font-size:20px; width:30px; text-align:right}
+  .topbar .act.info{width:30px; height:30px; background:url("ui/info_icon.png") center/24px 24px no-repeat}
   .screen{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch}
 
   /* ── 對話清單 ── */
@@ -144,6 +145,7 @@
     body[data-view="list"] .topbar .title{position:relative; top:4px; text-align:center; font-family:"Noto Serif TC",serif; font-size:1rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
     body[data-view="chat"] .topbar .back{position:relative; top:4px}
     body[data-view="chat"] .topbar .title{position:relative; top:4px; font-size:1rem}
+    body[data-view="chat"] .topbar .act.info{position:relative; top:4px}
     body[data-view="chat"] .composer{bottom:8px}
     body[data-view="chat"] #msgScreen{padding-bottom:92px; scroll-padding-bottom:92px}
   }
@@ -501,8 +503,9 @@ function setView(v, title){
   $('#chatScreen').classList.toggle('hidden', v!=='chat');
   $('#profileScreen').classList.toggle('hidden', v!=='profile');
   const back=$('#backBtn'), act=$('#actBtn');
+  act.classList.remove('info');
   if(v==='list'){ $('#topTitle').textContent='傳音石'; back.style.visibility='hidden'; act.textContent=''; act.onclick=null; }
-  else if(v==='chat'){ back.style.visibility='visible'; back.onclick=()=>{ loadConversations(); }; act.textContent='ℹ️'; act.onclick=()=>{ if(curConv&&curConv.type==='dm') openProfile(curConv.members.find(m=>m!==ME)); else toast('群組：'+(curConv.members||[]).join('、')); }; }
+  else if(v==='chat'){ back.style.visibility='visible'; back.onclick=()=>{ loadConversations(); }; act.textContent=''; act.classList.add('info'); act.onclick=()=>{ if(curConv&&curConv.type==='dm') openProfile(curConv.members.find(m=>m!==ME)); else toast('群組：'+(curConv.members||[]).join('、')); }; }
   else { $('#topTitle').textContent=title||'檔案'; back.style.visibility='visible'; back.onclick=()=>{ if(curConv) setView('chat'); else loadConversations(); }; act.textContent=''; act.onclick=null; }
 }
 
