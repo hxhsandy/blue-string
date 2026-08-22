@@ -26,10 +26,6 @@
   .hidden{display:none !important}
   button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit}
   img{max-width:100%}
-  #bsBg{display:none; position:fixed; left:0; right:0; top:0; bottom:calc(-1 * var(--safe-b));
-    min-height:calc(100dvh + var(--safe-b)); z-index:0; pointer-events:none; background:var(--bs-chat-bg)}
-  body[data-view="list"] #bsBg,
-  body[data-view="chat"] #bsBg{display:block}
 
   /* ── 登入頁（背景鎖死）── */
   #login{position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -71,7 +67,7 @@
     letter-spacing:.3em; text-indent:.3em; background:none; display:block}
 
   /* ── App 外殼 ── */
-  #app{position:fixed; inset:0; display:flex; flex-direction:column; z-index:2}
+  #app{position:fixed; inset:0; display:flex; flex-direction:column; z-index:1}
   .topbar{display:flex; align-items:center; gap:10px; padding:calc(10px + var(--safe-t)) 14px 10px;
     background:linear-gradient(180deg,#4a90d9,#3f7fc1); color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.12); z-index:5}
   .topbar .back{font-size:22px; width:30px; text-align:left}
@@ -80,7 +76,7 @@
   .screen{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch}
 
   /* ── 對話清單 ── */
-  html:has(body[data-view="list"]){background:var(--bs-chat-bg)}
+  html:has(body[data-view="list"]){background:#f2ddea}
   body[data-view="list"]{background:var(--bs-chat-bg)}
   body[data-view="list"] #app{background:transparent}
   body[data-view="list"] .topbar{background:transparent; box-shadow:none}
@@ -99,7 +95,7 @@
   .empty{color:var(--sub); text-align:center; padding:50px 30px; line-height:1.8; font-size:14px}
 
   /* ── 聊天視窗 ── */
-  html:has(body[data-view="chat"]){background:var(--bs-chat-bg)}
+  html:has(body[data-view="chat"]){background:#f2ddea}
   body[data-view="chat"]{background:var(--bs-chat-bg)}
   body[data-view="chat"] #app{background:transparent}
   body[data-view="chat"] .topbar{background:transparent; box-shadow:none; padding-bottom:18px}
@@ -165,7 +161,7 @@
   .toast.show{opacity:1}
 
   /* ── 藍線背景星星 / 點擊星星 ── */
-  .fall-star{position:fixed; top:-4vh; z-index:1; pointer-events:none; color:rgba(255,255,255,.72);
+  .fall-star{position:fixed; top:-4vh; z-index:0; pointer-events:none; color:rgba(255,255,255,.72);
     text-shadow:0 0 10px rgba(255,255,255,.62); animation:bsFall linear infinite}
   @keyframes bsFall{
     0%{transform:translateY(-4vh) translateX(0) rotate(0deg); opacity:0}
@@ -178,7 +174,6 @@
 </style>
 </head>
 <body>
-<div id="bsBg" aria-hidden="true"></div>
 
 <!-- 登入頁 -->
 <section id="login">
