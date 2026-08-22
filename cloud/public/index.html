@@ -30,9 +30,10 @@
   /* ── 登入頁（背景鎖死）── */
   #login{position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:calc(24px + var(--safe-t)) 24px calc(24px + var(--safe-b));
-    background:url("ui/login_bg.png") center/cover no-repeat, var(--bs-chat-bg); color:#58627f; text-align:center}
+    background:transparent; color:#58627f; text-align:center; isolation:isolate}
   #login::before{content:""; position:fixed; left:0; right:0; top:0; bottom:calc(-1 * var(--safe-b));
-    z-index:-1; pointer-events:none; background:url("ui/login_bg.png") center/cover no-repeat, var(--bs-chat-bg)}
+    z-index:0; pointer-events:none; background:url("ui/login_bg.png") center/cover no-repeat, var(--bs-chat-bg)}
+  #login > *{position:relative; z-index:1}
   #login h1{font-family:"Noto Serif TC",serif; font-weight:900; font-size:2.1rem;
     letter-spacing:.3em; text-indent:.3em; color:rgba(255,255,255,.9); margin:0 0 8px;
     text-shadow:0 2px 12px rgba(75,95,160,.28)}
