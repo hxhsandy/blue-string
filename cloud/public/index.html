@@ -100,10 +100,7 @@
   body[data-view="chat"] .topbar{background:transparent; box-shadow:none; padding-bottom:18px}
   body[data-view="chat"] .topbar .title{text-align:center; font-family:"Noto Serif TC",serif; font-size:1.35rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
   body[data-view="chat"] #chatScreen{position:relative; flex:1; overflow:hidden; background:transparent}
-  body[data-view="chat"] #chatScreen::before{content:""; position:fixed; left:0; right:0; top:0; bottom:calc(-1 * var(--safe-b));
-    pointer-events:none; z-index:-1; background:
-      var(--bs-chat-bg)}
-  #msgScreen{padding:18px 20px calc(108px + var(--safe-b)); scroll-padding-bottom:calc(108px + var(--safe-b))}
+  #msgScreen{padding:28px 20px calc(108px + var(--safe-b)); scroll-padding-bottom:calc(108px + var(--safe-b))}
   .msg{display:flex; gap:10px; margin:13px 0; align-items:flex-end; width:100%}
   .msg > div:not(.avatar):not(.tmm){min-width:0; max-width:min(76vw,520px); display:flex; flex-direction:column; align-items:flex-start}
   .msg .avatar{width:42px; height:42px; font-size:14px; box-shadow:0 6px 16px rgba(66,87,150,.18)}
@@ -128,7 +125,7 @@
   @keyframes fadein{from{opacity:0}to{opacity:1}}
   .daysep{text-align:center; color:#8ea6b2; font-size:12px; margin:14px 0}
 
-  .composer{display:flex; align-items:center; gap:10px; position:fixed; left:16px; right:16px; bottom:calc(14px + var(--safe-b)); z-index:20;
+  .composer{display:flex; align-items:center; gap:10px; position:fixed; left:16px; right:16px; bottom:calc(6px + var(--safe-b)); z-index:20;
     padding:12px 14px; min-height:64px; background:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.76);
     border-radius:28px; box-shadow:0 12px 34px rgba(83,103,168,.22), inset 0 0 0 1px rgba(255,255,255,.32); backdrop-filter:blur(16px)}
   .composer .plus{font-size:26px; color:#6f75d8; width:32px; text-align:center; line-height:1}
