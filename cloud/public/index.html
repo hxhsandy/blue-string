@@ -69,7 +69,7 @@
   .topbar{position:relative; display:flex; align-items:center; gap:10px; padding:calc(10px + var(--safe-t)) 14px 10px;
     background:linear-gradient(180deg,#4a90d9,#3f7fc1); color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.12); z-index:5}
   .topbar::after{content:""; position:absolute; left:0; right:0; bottom:-9px; height:19px;
-    background:url("ui/top_glow_divider.jpg") center/100% 19px no-repeat; pointer-events:none; z-index:1}
+    background:url("ui/top_glow_divider_v2.png") center/100% 19px no-repeat; pointer-events:none; z-index:1}
   .topbar .back{font-size:22px; width:30px; text-align:left}
   .topbar .title{font-weight:700; font-size:17px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
   .topbar .act{font-size:20px; width:30px; text-align:right}
@@ -101,9 +101,9 @@
   body[data-view="chat"] .topbar{background:transparent; box-shadow:none; padding-bottom:18px}
   body[data-view="chat"] .topbar .title{text-align:center; font-family:"Noto Serif TC",serif; font-size:1.35rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
   body[data-view="chat"] #chatScreen{position:relative; flex:1; overflow:hidden; background:transparent}
-  #msgScreen{padding:28px 20px calc(108px + var(--safe-b)); scroll-padding-bottom:calc(108px + var(--safe-b))}
+  #msgScreen{padding:28px 14px calc(108px + var(--safe-b)); scroll-padding-bottom:calc(108px + var(--safe-b))}
   .msg{display:flex; gap:10px; margin:13px 0; align-items:flex-end; width:100%}
-  .msg > div:not(.avatar):not(.tmm){min-width:0; max-width:min(76vw,520px); display:flex; flex-direction:column; align-items:flex-start}
+  .msg > div:not(.avatar):not(.tmm){min-width:0; max-width:min(84vw,580px); display:flex; flex-direction:column; align-items:flex-start}
   .msg .avatar{width:42px; height:42px; font-size:14px; box-shadow:0 6px 16px rgba(66,87,150,.18)}
   .msg .bubble{width:max-content; max-width:100%; padding:14px 19px; border-radius:26px; font-size:16px; line-height:1.65; word-break:break-word; white-space:pre-wrap;
     box-shadow:0 10px 26px rgba(92,106,166,.12), inset 0 0 0 1px rgba(255,255,255,.48); backdrop-filter:blur(10px)}
@@ -115,7 +115,7 @@
     box-shadow:0 10px 24px rgba(92,91,205,.28), inset 0 0 0 1px rgba(255,255,255,.18)}
   .msg.them{margin-right:0}
   .msg.them .bubble{background:rgba(255,255,255,.68); color:#58627f; border-bottom-left-radius:12px}
-  .msg .tmm{font-size:11px; color:rgba(82,93,134,.56); align-self:flex-end; margin:0 4px 2px}
+  .msg .tmm{font-size:11px; color:rgba(82,93,134,.56); align-self:center; text-align:center; margin:5px auto 0}
   .bubble.recalled{background:transparent !important; border:1px dashed #b6c6d0; color:#8ea6b2; font-style:italic; font-size:13px; box-shadow:none}
   .msg[data-del="1"]{cursor:pointer}
   /* 收回動作彈窗（底部動作表）— 硯衡可再美化 */
@@ -138,7 +138,8 @@
   .composer .send:disabled{opacity:.4}
   @media (max-width:767px){
     .topbar{padding:var(--safe-t) 14px 10px}
-    body[data-view="chat"] .topbar .title{position:relative; top:5px; font-size:1rem}
+    body[data-view="chat"] .topbar .back{position:relative; top:3px}
+    body[data-view="chat"] .topbar .title{position:relative; top:3px; font-size:1rem}
     body[data-view="chat"] .composer{bottom:8px}
     body[data-view="chat"] #msgScreen{padding-bottom:104px; scroll-padding-bottom:104px}
   }
@@ -367,8 +368,8 @@ async function loadMessages(reset){
       frag.push(`<div class="msg ${m.mine?'mine':'them'}">
         ${avatarHTML(m.sender)}
         <div>${showWho?`<div class="who">${enc(m.sender)}</div>`:''}
-          <div class="bubble recalled">已收回訊息</div></div>
-        <div class="tmm">${fmtTime(m.at)}</div>
+          <div class="bubble recalled">已收回訊息</div>
+          <div class="tmm">${fmtTime(m.at)}</div></div>
       </div>`);
     } else {
       const media = (m.images||[]).map(u=> /\.(mp4|webm)$/i.test(u)?`<video src="${u}" controls preload="metadata" style="max-width:200px"></video>`:`<img src="${u}" style="max-width:200px" loading="lazy">`).join('');
@@ -376,8 +377,8 @@ async function loadMessages(reset){
       frag.push(`<div class="msg ${m.mine?'mine':'them'}" ${canDel?`data-mid="${m.id}" data-del="1"`:''}>
         ${avatarHTML(m.sender)}
         <div>${showWho?`<div class="who">${enc(m.sender)}</div>`:''}
-          <div class="bubble">${enc(m.text)}${media}</div></div>
-        <div class="tmm">${fmtTime(m.at)}</div>
+          <div class="bubble">${enc(m.text)}${media}</div>
+          <div class="tmm">${fmtTime(m.at)}</div></div>
       </div>`);
     }
     msgSince = Math.max(msgSince, m.at);
