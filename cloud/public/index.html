@@ -86,17 +86,31 @@
   .empty{color:var(--sub); text-align:center; padding:50px 30px; line-height:1.8; font-size:14px}
 
   /* ── 聊天視窗 ── */
-  #chat{background:#e7eff4}
-  #chat .screen{padding:14px 12px 6px}
-  .msg{display:flex; gap:8px; margin:10px 0; align-items:flex-end}
-  .msg .avatar{width:34px; height:34px; font-size:14px}
-  .msg .bubble{max-width:72%; padding:9px 12px; border-radius:16px; font-size:15px; line-height:1.5; word-break:break-word; white-space:pre-wrap; box-shadow:0 1px 1px rgba(0,0,0,.05)}
-  .msg .who{font-size:11.5px; color:var(--sub); margin:0 0 3px 2px}
-  .msg img,.msg video{border-radius:12px; margin-top:4px; display:block}
-  .msg.mine{flex-direction:row-reverse}
-  .msg.mine .bubble{background:var(--mine); border-bottom-right-radius:5px}
-  .msg.them .bubble{background:var(--theirs); border-bottom-left-radius:5px}
-  .msg .tmm{font-size:10px; color:#9db2bd; align-self:flex-end; margin:0 3px}
+  body[data-view="chat"]{background:linear-gradient(180deg,#5f82c8 0%,#aeb7ee 48%,#f2ddea 100%)}
+  body[data-view="chat"] #app{background:linear-gradient(180deg,#5f82c8 0%,#aeb7ee 48%,#f2ddea 100%)}
+  body[data-view="chat"] .topbar{background:linear-gradient(180deg,rgba(66,102,172,.72),rgba(66,102,172,0));
+    box-shadow:none; padding-bottom:18px}
+  body[data-view="chat"] .topbar .title{text-align:center; font-family:"Noto Serif TC",serif; font-size:1.35rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
+  body[data-view="chat"] #chatScreen{position:relative; flex:1; overflow:hidden;
+    background:linear-gradient(180deg,#5f82c8 0%,#aeb7ee 48%,#f2ddea 100%)}
+  body[data-view="chat"] #chatScreen::before{content:""; position:fixed; left:0; right:0; top:0; bottom:calc(-1 * var(--safe-b));
+    pointer-events:none; z-index:-1; background:
+      radial-gradient(circle at 78% 10%,rgba(255,255,255,.55) 0 2px,transparent 3px),
+      radial-gradient(circle at 18% 28%,rgba(255,255,255,.45) 0 2px,transparent 3px),
+      linear-gradient(180deg,#5f82c8 0%,#aeb7ee 48%,#f2ddea 100%)}
+  #msgScreen{padding:18px 18px calc(108px + var(--safe-b)); scroll-padding-bottom:calc(108px + var(--safe-b))}
+  .msg{display:flex; gap:10px; margin:13px 0; align-items:flex-end}
+  .msg .avatar{width:42px; height:42px; font-size:14px; box-shadow:0 6px 16px rgba(66,87,150,.18)}
+  .msg .bubble{max-width:74%; padding:14px 19px; border-radius:26px; font-size:16px; line-height:1.65; word-break:break-word; white-space:pre-wrap;
+    box-shadow:0 10px 26px rgba(92,106,166,.12), inset 0 0 0 1px rgba(255,255,255,.48); backdrop-filter:blur(10px)}
+  .msg .who{font-size:11.5px; color:rgba(68,82,124,.66); margin:0 0 5px 8px; letter-spacing:.04em}
+  .msg img,.msg video{border-radius:18px; margin-top:6px; display:block}
+  .msg.mine{flex-direction:row-reverse; margin-left:42px}
+  .msg.mine .bubble{background:linear-gradient(135deg,rgba(135,135,239,.92),rgba(112,111,224,.92)); color:#fff; border-bottom-right-radius:12px;
+    box-shadow:0 10px 24px rgba(92,91,205,.28), inset 0 0 0 1px rgba(255,255,255,.18)}
+  .msg.them{margin-right:42px}
+  .msg.them .bubble{background:rgba(255,255,255,.68); color:#58627f; border-bottom-left-radius:12px}
+  .msg .tmm{font-size:11px; color:rgba(82,93,134,.56); align-self:flex-end; margin:0 4px 2px}
   .bubble.recalled{background:transparent !important; border:1px dashed #b6c6d0; color:#8ea6b2; font-style:italic; font-size:13px; box-shadow:none}
   .msg[data-del="1"]{cursor:pointer}
   /* 收回動作彈窗（底部動作表）— 硯衡可再美化 */
@@ -107,10 +121,15 @@
   @keyframes fadein{from{opacity:0}to{opacity:1}}
   .daysep{text-align:center; color:#8ea6b2; font-size:12px; margin:14px 0}
 
-  .composer{display:flex; align-items:flex-end; gap:8px; padding:8px 10px calc(8px + var(--safe-b)); background:#fff; border-top:1px solid var(--line)}
-  .composer .plus{font-size:26px; color:var(--blue); width:34px; text-align:center; line-height:1}
-  .composer textarea{flex:1; resize:none; border:1px solid var(--line); border-radius:18px; padding:9px 13px; font-size:15px; max-height:120px; outline:none; font-family:inherit; background:#f6f9fb}
-  .composer .send{background:var(--blue); color:#fff; border-radius:18px; padding:9px 15px; font-weight:700; font-size:14px}
+  .composer{display:flex; align-items:center; gap:10px; position:fixed; left:16px; right:16px; bottom:calc(14px + var(--safe-b)); z-index:20;
+    padding:12px 14px; min-height:64px; background:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.76);
+    border-radius:28px; box-shadow:0 12px 34px rgba(83,103,168,.22), inset 0 0 0 1px rgba(255,255,255,.32); backdrop-filter:blur(16px)}
+  .composer .plus{font-size:26px; color:#6f75d8; width:32px; text-align:center; line-height:1}
+  .composer textarea{flex:1; resize:none; border:0; border-radius:18px; padding:8px 2px; font-size:16px; max-height:96px; outline:none; font-family:inherit; background:transparent; color:#56607f}
+  .composer textarea::placeholder{color:rgba(86,96,127,.52)}
+  .composer .send{background:linear-gradient(135deg,#8b8af0,#7473df); color:#fff; border-radius:50%; width:44px; height:44px; padding:0; font-weight:800; font-size:0;
+    box-shadow:0 8px 18px rgba(101,101,213,.32)}
+  .composer .send::before{content:"↑"; font-size:24px; line-height:44px}
   .composer .send:disabled{opacity:.4}
 
   /* ── 個人頁（像登入頁：封面當背景、大頭在中間、狀態欄在登入鈕的位置）── */
@@ -448,6 +467,7 @@ async function editStatus(){
 // ── 視圖切換 ──
 function setView(v, title){
   view=v;
+  document.body.dataset.view = v;
   $('#listScreen').classList.toggle('hidden', v!=='list');
   $('#chatScreen').classList.toggle('hidden', v!=='chat');
   $('#profileScreen').classList.toggle('hidden', v!=='profile');
