@@ -103,7 +103,7 @@
   body[data-view="chat"] #chatScreen{position:relative; flex:1; overflow:hidden; background:transparent}
   #msgScreen{padding:28px 14px calc(108px + var(--safe-b)); scroll-padding-bottom:calc(108px + var(--safe-b))}
   .msg{display:flex; gap:10px; margin:13px 0; align-items:flex-end; width:100%}
-  .msg > div:not(.avatar):not(.tmm){min-width:0; max-width:min(calc(100% - 52px),580px); display:flex; flex-direction:column; align-items:flex-start}
+  .msg > div:not(.avatar):not(.tmm){min-width:0; width:max-content; max-width:calc(100% - 52px); display:flex; flex-direction:column; align-items:flex-start}
   .msg .avatar{width:42px; height:42px; font-size:14px; box-shadow:0 6px 16px rgba(66,87,150,.18)}
   .msg .bubble{width:max-content; max-width:100%; padding:14px 19px; border-radius:26px; font-size:16px; line-height:1.65; word-break:break-word; white-space:pre-wrap;
     box-shadow:0 10px 26px rgba(92,106,166,.12), inset 0 0 0 1px rgba(255,255,255,.48); backdrop-filter:blur(10px)}
