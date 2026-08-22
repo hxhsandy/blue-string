@@ -140,6 +140,7 @@
   .composer .send:disabled{opacity:.4}
   @media (max-width:767px){
     .topbar{padding:var(--safe-t) 14px 10px}
+    body[data-view="list"] .topbar .title{position:relative; top:4px; text-align:center; font-family:"Noto Serif TC",serif; font-size:1rem; letter-spacing:.12em}
     body[data-view="chat"] .topbar .back{position:relative; top:4px}
     body[data-view="chat"] .topbar .title{position:relative; top:4px; font-size:1rem}
     body[data-view="chat"] .composer{bottom:8px}
@@ -499,7 +500,7 @@ function setView(v, title){
   $('#chatScreen').classList.toggle('hidden', v!=='chat');
   $('#profileScreen').classList.toggle('hidden', v!=='profile');
   const back=$('#backBtn'), act=$('#actBtn');
-  if(v==='list'){ $('#topTitle').textContent='傳音石'; back.style.visibility='hidden'; act.textContent='👤'; act.onclick=()=>openProfile(ME); }
+  if(v==='list'){ $('#topTitle').textContent='傳音石'; back.style.visibility='hidden'; act.textContent=''; act.onclick=null; }
   else if(v==='chat'){ back.style.visibility='visible'; back.onclick=()=>{ loadConversations(); }; act.textContent='ℹ️'; act.onclick=()=>{ if(curConv&&curConv.type==='dm') openProfile(curConv.members.find(m=>m!==ME)); else toast('群組：'+(curConv.members||[]).join('、')); }; }
   else { $('#topTitle').textContent=title||'檔案'; back.style.visibility='visible'; back.onclick=()=>{ if(curConv) setView('chat'); else loadConversations(); }; act.textContent=''; act.onclick=null; }
 }
