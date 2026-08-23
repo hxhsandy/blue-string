@@ -72,6 +72,8 @@
     background:url("ui/top_glow_divider_v2.png") center/100% 19px no-repeat; pointer-events:none; z-index:1}
   .topbar .back{font-size:22px; width:30px; text-align:left}
   .topbar .title{font-weight:700; font-size:17px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .topbar .title.title-action{cursor:pointer}
+  .topbar .title.title-action:active{opacity:.72}
   .topbar .act{font-size:20px; width:30px; text-align:right}
   .topbar .act.info{width:30px; height:30px; background:url("ui/info_icon.png") center/24px 24px no-repeat}
   .screen{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch}
@@ -325,12 +327,26 @@ function avatarHTML(name, cls=''){
   const inner = p.avatar ? '' : initials(name);
   return `<div class="avatar ${cls}" style="${avatarStyle(name)}" data-name="${enc(name)}">${inner}</div>`;
 }
+function groupAvatarHTML(c){
+  const style = c && c.avatar ? `background-image:url('${c.avatar}')` : 'background-color:#6b9bd0';
+  const inner = c && c.avatar ? '' : '👥';
+  return `<div class="avatar" style="${style}">${inner}</div>`;
+}
 function enc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtTime(ts){ if(!ts) return ''; const d=new Date(ts); const h=d.getHours(), m=String(d.getMinutes()).padStart(2,'0'); const ap=h<12?'上午':'下午'; const hh=h%12||12; return `${ap}${hh}:${m}`; }
 function fmtDay(ts){ const d=new Date(ts); return `${d.getMonth()+1}月${d.getDate()}日`; }
 function chatTitle(){
   if(!curConv || !Array.isArray(curConv.members)) return '對話';
   return curConv.type==='group' ? (curConv.title||'群組') : (curConv.observing ? curConv.members.join(' ↔ ') : (curConv.members.find(m=>m!==ME)||'對話'));
+}
+function canEditGroup(){
+  return !!(curConv && curConv.type==='group' && (curConv.member || ME_ADMIN));
+}
+function configureChatTitleAction(){
+  const el = $('#topTitle');
+  const ok = view==='chat' && canEditGroup();
+  el.classList.toggle('title-action', ok);
+  el.onclick = ok ? openGroupMenu : null;
 }
 
 // ── 登入 ──
@@ -384,9 +400,8 @@ async function loadConversations(){
     const last = c.last ? (c.last.recalled ? '訊息已收回' : (c.last.has_media && !c.last.text ? '📷 圖片' : (c.type==='group'&&c.last.sender!==ME?c.last.sender+'：':'')+ (c.last.text||''))) : '還沒有訊息';
     const badge = c.unread>0 ? `<span class="badge">${c.unread>99?'99+':c.unread}</span>` : '';
     const eye = c.observing ? `<span style="font-size:11px;color:#8ea6b2">👁</span>` : '';
-    const dispAv = c.type==='group' ? '' : c.peer;
     const avatar = c.type==='group'
-      ? `<div class="avatar" style="background-color:#6b9bd0">👥</div>`
+      ? groupAvatarHTML(c)
       : avatarHTML(c.peer);
     return `<div class="conv" data-id="${c.id}">
       ${avatar}
@@ -412,8 +427,9 @@ async function loadMessages(reset){
 async function loadMessagesFrom(since, reset, scrollBottom=true){
   const d = await api('/api/messages?conversation='+curConv.id+'&since='+since);
   profiles = Object.assign(profiles, d.profiles||{});
-  curConv = {id:d.conversation.id, title:d.conversation.title, type:d.conversation.type, members:d.conversation.members, observing:d.conversation.observing};
+  curConv = {id:d.conversation.id, title:d.conversation.title, type:d.conversation.type, avatar:d.conversation.avatar||'', members:d.conversation.members, member:d.conversation.member, observing:d.conversation.observing};
   $('#topTitle').textContent = chatTitle();
+  configureChatTitleAction();
   // 觀察模式（我不在這段對話裡，例如 admin 監督私聊）：只讀不發言
   $('.composer').classList.toggle('hidden', !!curConv.observing);
   $('#observeBar').classList.toggle('hidden', !curConv.observing);
@@ -477,6 +493,51 @@ function showRecall(id){
     try{ await api('/api/message/delete',{method:'POST',body:JSON.stringify({id})}); await loadMessages(true); toast('已收回'); }
     catch(e){ toast('收回失敗：'+e.message); }
   };
+}
+
+// ── 群組設定：點群組標題 → 改群組名稱 / 改群組頭像 ──
+function openGroupMenu(){
+  if(!canEditGroup()) return;
+  const sheet=document.createElement('div'); sheet.className='sheet';
+  sheet.innerHTML=`<div class="sheetbox">
+    <button class="sheetbtn" id="renameGroup">改群組名稱</button>
+    <button class="sheetbtn" id="avatarGroup">改群組頭像</button>
+    <button class="sheetbtn" id="cancelGroup">取消</button>
+  </div>`;
+  document.body.appendChild(sheet);
+  const close=()=>sheet.remove();
+  sheet.onclick=e=>{ if(e.target===sheet) close(); };
+  sheet.querySelector('#cancelGroup').onclick=close;
+  sheet.querySelector('#renameGroup').onclick=()=>{ close(); renameGroup(); };
+  sheet.querySelector('#avatarGroup').onclick=()=>{ close(); pickGroupAvatar(); };
+}
+async function renameGroup(){
+  if(!canEditGroup()) return;
+  const cur = curConv.title || '群組';
+  const title = prompt('新的群組名稱：', cur);
+  if(title===null) return;
+  const clean = title.trim();
+  if(!clean){ toast('群組名稱不能空白'); return; }
+  try{
+    await api('/api/conversation/update',{method:'POST',body:JSON.stringify({conversation:curConv.id,title:clean})});
+    toast('群組名稱已更新');
+    await loadMessages(true);
+  }catch(e){ toast('更新失敗：'+e.message); }
+}
+function pickGroupAvatar(){
+  if(!canEditGroup()) return;
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.onchange=async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    toast('上傳群組頭像中…');
+    try{
+      const data=await compress(f);
+      await api('/api/conversation/update',{method:'POST',body:JSON.stringify({conversation:curConv.id,avatar:data})});
+      toast('群組頭像已更新');
+      await loadMessages(true);
+    }catch(err){ toast('更新失敗：'+err.message); }
+  };
+  inp.click();
 }
 
 // ── 日期搜尋：右上角日曆 → 點日期跳到那天第一則 ──
@@ -634,11 +695,13 @@ function setView(v, title){
   $('#calendarScreen').classList.toggle('hidden', v!=='calendar');
   $('#profileScreen').classList.toggle('hidden', v!=='profile');
   const back=$('#backBtn'), act=$('#actBtn');
+  const titleEl=$('#topTitle');
   act.classList.remove('info');
-  if(v==='list'){ $('#topTitle').textContent='傳音石'; back.style.visibility='hidden'; act.textContent=''; act.onclick=null; }
-  else if(v==='chat'){ $('#topTitle').textContent=chatTitle(); back.style.visibility='visible'; back.onclick=()=>{ loadConversations(); }; act.textContent=''; act.classList.add('info'); act.onclick=openCalendar; }
-  else if(v==='calendar'){ $('#topTitle').textContent='按日期搜尋'; back.style.visibility='visible'; back.onclick=()=>setView('chat'); act.textContent=''; act.onclick=null; }
-  else { $('#topTitle').textContent=title||'檔案'; back.style.visibility='visible'; back.onclick=()=>{ if(curConv) setView('chat'); else loadConversations(); }; act.textContent=''; act.onclick=null; }
+  titleEl.classList.remove('title-action'); titleEl.onclick=null;
+  if(v==='list'){ titleEl.textContent='傳音石'; back.style.visibility='hidden'; act.textContent=''; act.onclick=null; }
+  else if(v==='chat'){ titleEl.textContent=chatTitle(); back.style.visibility='visible'; back.onclick=()=>{ loadConversations(); }; act.textContent=''; act.classList.add('info'); act.onclick=openCalendar; configureChatTitleAction(); }
+  else if(v==='calendar'){ titleEl.textContent='按日期搜尋'; back.style.visibility='visible'; back.onclick=()=>setView('chat'); act.textContent=''; act.onclick=null; }
+  else { titleEl.textContent=title||'檔案'; back.style.visibility='visible'; back.onclick=()=>{ if(curConv) setView('chat'); else loadConversations(); }; act.textContent=''; act.onclick=null; }
 }
 
 // ── 輪詢（rev 變了才抓）──
@@ -664,7 +727,7 @@ const MOCK = {
     '小幾': {name:'小幾', color:'#3f7fc1', signature:'畫室裡靠著不說話＝在', avatar:'', cover:''},
   },
   convs: {
-    1: {id:1, type:'group', title:'藍線・三人測試群', members:['CK','小傑','小幾','織韻'], updated_at: Date.now()-60000,
+    1: {id:1, type:'group', title:'藍線・三人測試群', avatar:'', members:['CK','小傑','小幾','織韻'], updated_at: Date.now()-60000,
         msgs:[
           {id:1, sender:'CK',   text:'哈囉大家～傳音石開通囉 🎉', at: Date.now()-3600000},
           {id:2, sender:'小傑', text:'收到！這裡好安靜好適合講悄悄話', at: Date.now()-3500000},
@@ -694,7 +757,7 @@ async function mockApi(path, opts={}){
       const last = c.msgs[c.msgs.length-1];
       const observing = !c.members.includes(MOCK.me);
       return {id:c.id, type:c.type, title:c.type==='group'?c.title:(observing?c.members.join(' ↔ '):c.members.find(m=>m!==MOCK.me)),
-        peer:c.type==='dm'?c.members.find(m=>m!==MOCK.me):'', members:c.members, observing,
+        peer:c.type==='dm'?c.members.find(m=>m!==MOCK.me):'', avatar:c.avatar||'', members:c.members, observing,
         updated_at:c.updated_at, last:last?{sender:last.sender,text:last.text,has_media:false,at:last.at}:null,
         unread: c.id===1?2:0};
     }).sort((a,b)=>b.updated_at-a.updated_at);
@@ -704,7 +767,7 @@ async function mockApi(path, opts={}){
     const c = MOCK.convs[Number(u.searchParams.get('conversation'))]; if(!c) return {error:'no'};
     const member = c.members.includes(MOCK.me);
     const since = Number(u.searchParams.get('since')||0);
-    return {conversation:{id:c.id,type:c.type,title:c.title,members:c.members,member,observing:!member},
+    return {conversation:{id:c.id,type:c.type,title:c.title,avatar:c.avatar||'',members:c.members,member,observing:!member},
       messages:c.msgs.filter(m=>m.at>since).map(m=>({id:m.id, sender:m.sender, text:m.deleted?'':m.text, images:[], at:m.at, mine:m.sender===MOCK.me, recalled:!!m.deleted})), now:Date.now(), profiles:MOCK.profiles};
   }
   if (P==='/api/message-days'){
@@ -720,6 +783,7 @@ async function mockApi(path, opts={}){
     return {conversation:c.id,tz:'Asia/Taipei',days:Object.values(by).sort((a,b)=>a.day.localeCompare(b.day))};
   }
   if (P==='/api/message'){ const c=MOCK.convs[Number(body.conversation)]; if(c){ c.msgs.push({id:Date.now(),sender:MOCK.me,text:body.text||'',at:Date.now()}); c.updated_at=Date.now(); } return {ok:true}; }
+  if (P==='/api/conversation/update'){ const c=MOCK.convs[Number(body.conversation)]; if(c&&c.type==='group'){ if('title' in body) c.title=String(body.title||c.title); if(body.avatar) c.avatar=body.avatar; c.updated_at=Date.now(); } return {ok:true}; }
   if (P==='/api/message/delete'){ for(const c of Object.values(MOCK.convs)){ const m=c.msgs.find(x=>x.id===Number(body.id)); if(m){ m.deleted=true; m.text=''; c.updated_at=Date.now(); } } return {ok:true,recalled:true}; }
   if (P==='/api/read') return {ok:true};
   if (P==='/api/profile' && opts.method==='POST'){ Object.assign(MOCK.profiles[MOCK.me], body); return {ok:true}; }

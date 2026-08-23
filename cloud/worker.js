@@ -40,6 +40,7 @@ export default {
       if (P === '/api/message/delete' && M === 'POST') return deleteMessage(request, env, me);
       if (P === '/api/read'           && M === 'POST') return markRead(request, env, me);
       if (P === '/api/conversation' && M === 'POST') return createConversation(request, env, me);
+      if (P === '/api/conversation/update' && M === 'POST') return updateConversation(request, env, me);
       if (P === '/api/profile'      && M === 'POST') return updateProfile(request, env, me);
       if (P === '/api/admin/member' && M === 'POST') return adminMember(request, env, me);
       if (P === '/api/admin/conversation-add' && M === 'POST') return adminConvAdd(request, env, me);
@@ -108,7 +109,7 @@ async function getConversations(env, me) {
   const convs = [];
   const memberNames = [me.name];
   for (const cid of ids) {
-    const c = await env.DB.prepare('SELECT id,type,title,created_at,updated_at FROM conversations WHERE id = ?').bind(cid).first();
+    const c = await env.DB.prepare('SELECT * FROM conversations WHERE id = ?').bind(cid).first();
     if (!c) continue;
     const members = (await env.DB.prepare('SELECT member FROM conversation_members WHERE conversation_id = ?').bind(cid).all()).results.map(r => r.member);
     members.forEach(m => memberNames.push(m));
@@ -121,6 +122,7 @@ async function getConversations(env, me) {
     const title = c.type === 'group' ? (c.title || '群組') : (observing ? members.join(' ↔ ') : peer);
     convs.push({
       id: c.id, type: c.type, title, peer, members, observing,
+      avatar: c.avatar_key ? '/api/media?key=' + encodeURIComponent(c.avatar_key) : '',
       updated_at: c.updated_at,
       last: last ? { sender: last.sender, text: last.deleted ? '' : (last.text || ''), has_media: !last.deleted && !!last.media_keys, at: last.created_at, recalled: !!last.deleted } : null,
       unread: (un && un.n) || 0,
@@ -141,7 +143,7 @@ async function getMessages(url, env, me) {
   const rows = (await env.DB.prepare(
     'SELECT * FROM messages WHERE conversation_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 300'
   ).bind(cid, since).all()).results;
-  const c = await env.DB.prepare('SELECT id,type,title FROM conversations WHERE id = ?').bind(cid).first();
+  const c = await env.DB.prepare('SELECT * FROM conversations WHERE id = ?').bind(cid).first();
   const members = (await env.DB.prepare('SELECT member FROM conversation_members WHERE conversation_id = ?').bind(cid).all()).results.map(r => r.member);
   const msgs = rows.map(r => ({
     id: r.id, sender: r.sender,
@@ -151,7 +153,7 @@ async function getMessages(url, env, me) {
     recalled: !!r.deleted,
   }));
   return json({
-    conversation: { id: cid, type: c ? c.type : 'group', title: c ? c.title : '', members, member, observing: !member },
+    conversation: { id: cid, type: c ? c.type : 'group', title: c ? c.title : '', avatar: c && c.avatar_key ? '/api/media?key=' + encodeURIComponent(c.avatar_key) : '', members, member, observing: !member },
     messages: msgs, now: Date.now(),
     profiles: await profilesFor(env, members),
   });
@@ -276,6 +278,35 @@ async function createConversation(request, env, me) {
   return json({ ok: true, id: cid, type, members, title });
 }
 
+// ── POST /api/conversation/update {conversation,title?,avatar?}：更新群組名稱/頭像 ──
+async function updateConversation(request, env, me) {
+  const b = await request.json().catch(() => ({}));
+  const cid = Number(b.conversation);
+  if (!cid) return json({ error: '缺 conversation' }, 400);
+  const c = await env.DB.prepare('SELECT * FROM conversations WHERE id = ?').bind(cid).first();
+  if (!c) return json({ error: '對話不存在' }, 404);
+  if (c.type !== 'group') return json({ error: '只有多人群組可以改名稱或頭像' }, 400);
+  if (!(await isMember(env, cid, me.name)) && !hasScope(me, 'admin')) return json({ error: '你不在這段群組裡' }, 403);
+
+  const sets = [], vals = [];
+  if ('title' in b) {
+    const title = String(b.title || '').trim().slice(0, 40);
+    if (!title) return json({ error: '群組名稱不能空白' }, 400);
+    sets.push('title = ?'); vals.push(title);
+  }
+  if (b.avatar) {
+    await ensureConversationAvatarColumn(env);
+    const k = await putImage(env, `groups/${cid}_${Date.now()}`, b.avatar);
+    if (k) { sets.push('avatar_key = ?'); vals.push(k); }
+  }
+  if (!sets.length) return json({ error: '沒有要更新的內容' }, 400);
+  const ts = Date.now();
+  sets.push('updated_at = ?'); vals.push(ts);
+  vals.push(cid);
+  await env.DB.prepare(`UPDATE conversations SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+  return json({ ok: true, conversation: cid, updated_at: ts });
+}
+
 // ── GET /api/profile?name=X：看某人的個人頁 ──
 async function getProfile(url, env) {
   const name = String(url.searchParams.get('name') || '').trim();
@@ -386,7 +417,14 @@ async function adminMigrate(env, me) {
   catch (e) { done.push('idx_msg_cmid 失敗:' + String((e && e.message) || e)); }
   try { await env.DB.prepare('ALTER TABLE messages ADD COLUMN deleted INTEGER DEFAULT 0').run(); done.push('messages.deleted 已新增'); }
   catch (e) { done.push('messages.deleted 已存在(略過)'); }
+  try { await env.DB.prepare('ALTER TABLE conversations ADD COLUMN avatar_key TEXT').run(); done.push('conversations.avatar_key 已新增'); }
+  catch (e) { done.push('conversations.avatar_key 已存在(略過)'); }
   return json({ ok: true, done });
+}
+
+async function ensureConversationAvatarColumn(env) {
+  try { await env.DB.prepare('ALTER TABLE conversations ADD COLUMN avatar_key TEXT').run(); }
+  catch (e) { /* 已存在或同時建立時略過；真正 UPDATE 失敗會在呼叫處丟出 */ }
 }
 
 // ── bootstrap 初始化：空庫才跑，建表+三人測試群+即時產 token 回傳一次 ──

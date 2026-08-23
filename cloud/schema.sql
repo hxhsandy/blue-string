@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   type        TEXT NOT NULL,        -- 'dm' | 'group'
   title       TEXT,                 -- 群組名（dm 可空，前端顯示對方名）
+  avatar_key  TEXT,                 -- 群組頭像 KV key（dm 可空）
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL      -- 最後一則訊息時間（對話清單排序＋未讀判斷）
 );

@@ -6,7 +6,7 @@ export const STATEMENTS = [
   "CREATE TABLE IF NOT EXISTS tokens (name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, scopes TEXT NOT NULL DEFAULT 'post', created_at INTEGER NOT NULL)",
   "CREATE INDEX IF NOT EXISTS idx_tokens_name ON tokens(name)",
   "CREATE TABLE IF NOT EXISTS profiles (name TEXT PRIMARY KEY, color TEXT, signature TEXT, avatar_key TEXT, cover_key TEXT, updated_at INTEGER DEFAULT 0)",
-  "CREATE TABLE IF NOT EXISTS conversations (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, title TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS conversations (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, title TEXT, avatar_key TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
   "CREATE INDEX IF NOT EXISTS idx_conv_updated ON conversations(updated_at)",
   "CREATE TABLE IF NOT EXISTS conversation_members (conversation_id INTEGER NOT NULL, member TEXT NOT NULL, joined_at INTEGER NOT NULL, PRIMARY KEY (conversation_id, member))",
   "CREATE INDEX IF NOT EXISTS idx_members_member ON conversation_members(member)",
