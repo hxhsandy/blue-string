@@ -318,7 +318,7 @@ function enc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 function fmtTime(ts){ if(!ts) return ''; const d=new Date(ts); const h=d.getHours(), m=String(d.getMinutes()).padStart(2,'0'); const ap=h<12?'上午':'下午'; const hh=h%12||12; return `${ap}${hh}:${m}`; }
 function fmtDay(ts){ const d=new Date(ts); return `${d.getMonth()+1}月${d.getDate()}日`; }
 function chatTitle(){
-  if(!curConv) return '對話';
+  if(!curConv || !Array.isArray(curConv.members)) return '對話';
   return curConv.type==='group' ? (curConv.title||'群組') : (curConv.observing ? curConv.members.join(' ↔ ') : (curConv.members.find(m=>m!==ME)||'對話'));
 }
 
