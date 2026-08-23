@@ -30,6 +30,7 @@ export default {
       if (P === '/api/rev'           && M === 'GET')  return getRev(env, me);
       if (P === '/api/conversations' && M === 'GET')  return getConversations(env, me);
       if (P === '/api/messages'      && M === 'GET')  return getMessages(url, env, me);
+      if (P === '/api/message-days'  && M === 'GET')  return getMessageDays(url, env, me);
       if (P === '/api/profile'       && M === 'GET')  return getProfile(url, env);
 
       // 寫入類要 'post' 權限（訪客 scope=read 只能看）
@@ -154,6 +155,18 @@ async function getMessages(url, env, me) {
     messages: msgs, now: Date.now(),
     profiles: await profilesFor(env, members),
   });
+}
+
+// ── GET /api/message-days?conversation=X：這個對話「哪些日期有訊息」（月曆點亮＋跳轉用）──
+// 依 Asia/Taipei 分日；每天回 count + 當天第一則/最後一則時間戳。前端：有 day 的格子＝亮可點，點了用 first_at 跳。
+async function getMessageDays(url, env, me) {
+  const cid = Number(url.searchParams.get('conversation'));
+  if (!cid) return json({ error: '缺 conversation' }, 400);
+  if (!(await isMember(env, cid, me.name)) && !hasScope(me, 'admin')) return json({ error: '你不在這段對話裡' }, 403);
+  const rows = (await env.DB.prepare(
+    "SELECT strftime('%Y-%m-%d', created_at/1000, 'unixepoch', '+8 hours') AS day, COUNT(*) AS count, MIN(created_at) AS first_at, MAX(created_at) AS last_at FROM messages WHERE conversation_id = ? GROUP BY day ORDER BY day ASC"
+  ).bind(cid).all()).results;
+  return json({ conversation: cid, tz: 'Asia/Taipei', days: rows });
 }
 
 // ── POST /api/message {conversation, text, images?, client_msg_id?}：送訊息（成員才行）──
