@@ -103,6 +103,11 @@
   body[data-view="chat"] .topbar{background:transparent; box-shadow:none; padding-bottom:18px}
   body[data-view="chat"] .topbar .title{text-align:center; font-family:"Noto Serif TC",serif; font-size:1.35rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
   body[data-view="chat"] #chatScreen{position:relative; flex:1; overflow:hidden; background:transparent}
+  html:has(body[data-view="calendar"]){background:#f2ddea}
+  body[data-view="calendar"]{background:var(--bs-chat-bg)}
+  body[data-view="calendar"] #app{background:transparent}
+  body[data-view="calendar"] .topbar{background:transparent; box-shadow:none; padding-bottom:18px}
+  body[data-view="calendar"] .topbar .title{text-align:center; font-family:"Noto Serif TC",serif; font-size:1.35rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
   #msgScreen{padding:28px 14px calc(108px + var(--safe-b)); scroll-padding-bottom:calc(108px + var(--safe-b))}
   .msg{display:flex; gap:10px; margin:13px 0; align-items:flex-end; width:100%}
   .msg > div:not(.avatar):not(.tmm){min-width:0; max-width:calc(100% - 104px); display:flex; flex-direction:column; align-items:flex-start}
@@ -140,14 +145,40 @@
     box-shadow:0 8px 18px rgba(101,101,213,.32)}
   .composer .send::before{content:"↑"; font-size:21px; line-height:38px}
   .composer .send:disabled{opacity:.4}
+  .latest-btn{position:fixed; left:50%; bottom:calc(76px + var(--safe-b)); transform:translateX(-50%);
+    z-index:25; padding:8px 16px; border-radius:999px; background:rgba(255,255,255,.74);
+    color:#58627f; font-size:13px; letter-spacing:.08em; box-shadow:0 8px 22px rgba(83,103,168,.16);
+    backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.78)}
+  #calendarScreen{padding:26px 16px calc(26px + var(--safe-b)); background:transparent}
+  .cal-wrap{max-width:520px; margin:0 auto; color:#58627f}
+  .cal-hint{text-align:center; font-size:13px; color:rgba(82,93,134,.66); margin:4px 0 18px; letter-spacing:.08em}
+  .cal-month{margin:0 0 24px; padding:16px 14px 18px; border-radius:24px;
+    background:rgba(255,255,255,.34); border:1px solid rgba(255,255,255,.52);
+    box-shadow:0 10px 26px rgba(92,106,166,.10), inset 0 0 0 1px rgba(255,255,255,.18);
+    backdrop-filter:blur(12px)}
+  .cal-title{font-family:"Noto Serif TC",serif; font-weight:900; text-align:center; font-size:1rem;
+    letter-spacing:.14em; margin:0 0 12px; color:#58627f; text-shadow:0 2px 10px rgba(255,255,255,.28)}
+  .cal-week,.cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px}
+  .cal-week{margin-bottom:6px; color:rgba(82,93,134,.62); font-size:12px; text-align:center}
+  .cal-day{position:relative; min-height:42px; border-radius:14px; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:1px; color:rgba(82,93,134,.34); font-size:14px; font-weight:700}
+  .cal-day.has{color:rgba(255,255,255,.94); cursor:pointer; text-shadow:0 1px 8px rgba(69,86,150,.20)}
+  .cal-day.has:active{background:rgba(255,255,255,.18)}
+  .cal-day.today{color:#fff; background:linear-gradient(135deg,#8b8af0,#7473df);
+    box-shadow:0 8px 18px rgba(101,101,213,.28)}
+  .cal-day.today .today-label{font-size:10px; line-height:1; font-weight:600; letter-spacing:.08em; opacity:.92}
+  .cal-empty{min-height:42px}
   @media (max-width:767px){
     .topbar{padding:var(--safe-t) 14px 10px}
     body[data-view="list"] .topbar .title{position:relative; top:4px; text-align:center; font-family:"Noto Serif TC",serif; font-size:1rem; letter-spacing:.12em; text-shadow:0 2px 10px rgba(255,255,255,.35)}
     body[data-view="chat"] .topbar .back{position:relative; top:4px}
     body[data-view="chat"] .topbar .title{position:relative; top:4px; font-size:1rem}
     body[data-view="chat"] .topbar .act.info{position:relative; top:6px}
+    body[data-view="calendar"] .topbar .back{position:relative; top:4px}
+    body[data-view="calendar"] .topbar .title{position:relative; top:4px; font-size:1rem}
     body[data-view="chat"] .composer{bottom:8px}
     body[data-view="chat"] #msgScreen{padding-bottom:92px; scroll-padding-bottom:92px}
+    .latest-btn{bottom:74px}
   }
 
   /* ── 個人頁（像登入頁：封面當背景、大頭在中間、狀態欄在登入鈕的位置）── */
@@ -224,12 +255,18 @@
   <div class="screen hidden" id="chatScreen" style="display:flex; flex-direction:column; padding:0">
     <div class="screen" id="msgScreen"></div>
     <div id="observeBar" class="hidden" style="padding:12px; text-align:center; background:#eef3f6; color:#6b8492; font-size:13px; border-top:1px solid var(--line)">👁 觀察模式 · 你不在這段對話裡，只讀不發言</div>
+    <button id="latestBtn" class="latest-btn hidden">回到最新</button>
     <div class="composer">
       <button class="plus" id="imgBtn">＋</button>
       <input type="file" id="imgFile" accept="image/*" class="hidden">
       <textarea id="msgInput" rows="1" placeholder="說點什麼…"></textarea>
       <button class="send" id="sendBtn" disabled>送出</button>
     </div>
+  </div>
+
+  <!-- 日期搜尋 -->
+  <div class="screen hidden" id="calendarScreen">
+    <div class="cal-wrap" id="calendarBox"></div>
   </div>
 
   <!-- 個人頁 -->
@@ -249,7 +286,8 @@ let profiles = {};                       // name -> {color,avatar,signature,cove
 let msgSince = 0;                        // 目前對話已載入到的時間
 let lastRev = '';
 let pollTimer = null;
-let view = 'list';                       // list | chat | profile
+let view = 'list';                       // list | chat | calendar | profile
+let viewingHistory = false;              // 日期跳轉後暫停聊天自動重載，避免被輪詢拉回最新
 
 // ── 設計模式：本機打開檔案(file://)或加 ?design=1 → 載入假資料離線渲染，供硯衡 1px 微調 UI，免部署 ──
 const DESIGN = location.protocol === 'file:' || new URLSearchParams(location.search).has('design');
@@ -279,6 +317,10 @@ function avatarHTML(name, cls=''){
 function enc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtTime(ts){ if(!ts) return ''; const d=new Date(ts); const h=d.getHours(), m=String(d.getMinutes()).padStart(2,'0'); const ap=h<12?'上午':'下午'; const hh=h%12||12; return `${ap}${hh}:${m}`; }
 function fmtDay(ts){ const d=new Date(ts); return `${d.getMonth()+1}月${d.getDate()}日`; }
+function chatTitle(){
+  if(!curConv) return '對話';
+  return curConv.type==='group' ? (curConv.title||'群組') : (curConv.observing ? curConv.members.join(' ↔ ') : (curConv.members.find(m=>m!==ME)||'對話'));
+}
 
 // ── 登入 ──
 $('#loginBtn').onclick = doLogin;
@@ -347,17 +389,20 @@ async function loadConversations(){
 
 // ── 開啟對話 ──
 async function openConv(id){
-  curConv = {id}; msgSince = 0;
+  curConv = {id}; msgSince = 0; viewingHistory = false; $('#latestBtn').classList.add('hidden');
   $('#msgScreen').innerHTML = '<div class="empty">載入中…</div>';
   setView('chat');
   await loadMessages(true);
   await api('/api/read', {method:'POST', body:JSON.stringify({conversation:id})});
 }
 async function loadMessages(reset){
-  const d = await api('/api/messages?conversation='+curConv.id+'&since='+(reset?0:msgSince));
+  return loadMessagesFrom(reset ? 0 : msgSince, reset, true);
+}
+async function loadMessagesFrom(since, reset, scrollBottom=true){
+  const d = await api('/api/messages?conversation='+curConv.id+'&since='+since);
   profiles = Object.assign(profiles, d.profiles||{});
   curConv = {id:d.conversation.id, title:d.conversation.title, type:d.conversation.type, members:d.conversation.members, observing:d.conversation.observing};
-  $('#topTitle').textContent = curConv.type==='group' ? (curConv.title||'群組') : (curConv.observing ? curConv.members.join(' ↔ ') : (curConv.members.find(m=>m!==ME)||'對話'));
+  $('#topTitle').textContent = chatTitle();
   // 觀察模式（我不在這段對話裡，例如 admin 監督私聊）：只讀不發言
   $('.composer').classList.toggle('hidden', !!curConv.observing);
   $('#observeBar').classList.toggle('hidden', !curConv.observing);
@@ -390,9 +435,10 @@ async function loadMessages(reset){
     msgSince = Math.max(msgSince, m.at);
   }
   if(reset) box.innerHTML = frag.join(''); else box.insertAdjacentHTML('beforeend', frag.join(''));
-  if(d.messages.length){ box.scrollTop = box.scrollHeight; }
+  if(d.messages.length && scrollBottom){ box.scrollTop = box.scrollHeight; }
   bindAvatars(box);
   bindMsgActions(box);
+  return d;
 }
 
 // ── 長按訊息 → 彈出收回（LINE 式）。自己的訊息、或管理員可收回任何人的 ──
@@ -422,22 +468,94 @@ function showRecall(id){
   };
 }
 
+// ── 日期搜尋：右上角日曆 → 點日期跳到那天第一則 ──
+function ymdLocal(ts){
+  const d=new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function monthKey(y,m){ return `${y}-${String(m+1).padStart(2,'0')}`; }
+function addMonths(d,n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
+async function openCalendar(){
+  if(!curConv) return;
+  setView('calendar');
+  const box=$('#calendarBox');
+  box.innerHTML='<div class="empty">讀取日期中…</div>';
+  try{
+    const d=await api('/api/message-days?conversation='+curConv.id);
+    renderCalendar(d.days||[]);
+  }catch(e){
+    box.innerHTML=`<div class="empty">日期讀取失敗<br>${enc(e.message)}</div>`;
+  }
+}
+function renderCalendar(days){
+  const box=$('#calendarBox');
+  days = days.slice().sort((a,b)=>a.day.localeCompare(b.day));
+  if(!days.length){ box.innerHTML='<div class="empty">目前沒有可搜尋的訊息日期</div>'; return; }
+  const byDay=new Map(days.map(x=>[x.day,x]));
+  const first=new Date(days[0].day+'T00:00:00+08:00');
+  const last=new Date(days[days.length-1].day+'T00:00:00+08:00');
+  const todayKey=ymdLocal(Date.now());
+  const months=[];
+  let cur=new Date(first.getFullYear(), first.getMonth(), 1);
+  const end=new Date(last.getFullYear(), last.getMonth(), 1);
+  while(cur<=end){ months.push(new Date(cur)); cur=addMonths(cur,1); }
+  const week='<div class="cal-week"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>';
+  box.innerHTML='<div class="cal-hint">有訊息的日期會亮起，點一下直接跳到那天</div>'+months.map(month=>{
+    const y=month.getFullYear(), m=month.getMonth();
+    const pad=new Date(y,m,1).getDay();
+    const total=new Date(y,m+1,0).getDate();
+    const cells=[];
+    for(let i=0;i<pad;i++) cells.push('<div class="cal-empty"></div>');
+    for(let day=1;day<=total;day++){
+      const key=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const hit=byDay.get(key);
+      const cls=['cal-day'];
+      if(hit) cls.push('has');
+      if(key===todayKey) cls.push('today');
+      const attrs=hit ? ` data-first="${hit.first_at}" data-day="${key}" title="${hit.count} 則"` : '';
+      const label=key===todayKey ? '<span class="today-label">今天</span>' : '';
+      cells.push(`<button class="${cls.join(' ')}"${attrs} ${hit?'':'disabled'}><span>${day}</span>${label}</button>`);
+    }
+    return `<section class="cal-month" data-month="${monthKey(y,m)}"><h3 class="cal-title">${y}年${m+1}月</h3>${week}<div class="cal-grid">${cells.join('')}</div></section>`;
+  }).join('');
+  box.querySelectorAll('.cal-day.has').forEach(btn=>btn.onclick=()=>jumpToDay(Number(btn.dataset.first)));
+  requestAnimationFrame(()=>{ $('#calendarScreen').scrollTop = $('#calendarScreen').scrollHeight; });
+}
+async function jumpToDay(firstAt){
+  if(!curConv || !firstAt) return;
+  viewingHistory = true;
+  setView('chat');
+  $('#latestBtn').classList.remove('hidden');
+  $('#msgScreen').innerHTML='<div class="empty">跳轉中…</div>';
+  msgSince = firstAt - 1;
+  await loadMessagesFrom(firstAt - 1, true, false);
+  $('#msgScreen').scrollTop = 0;
+}
+async function returnToLatest(){
+  if(!curConv) return;
+  viewingHistory = false;
+  $('#latestBtn').classList.add('hidden');
+  await loadMessages(true);
+  await api('/api/read',{method:'POST',body:JSON.stringify({conversation:curConv.id})});
+}
+
 // ── 送訊息 ──
 const input = $('#msgInput'), sendBtn = $('#sendBtn');
 input.addEventListener('input', ()=>{ sendBtn.disabled = !input.value.trim(); input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,120)+'px'; });
 sendBtn.onclick = sendText;
+$('#latestBtn').onclick = returnToLatest;
 async function sendText(){
   const text = input.value.trim(); if(!text||!curConv) return;
   input.value=''; input.style.height='auto'; sendBtn.disabled=true;
   const cmid = (crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());
-  try{ await api('/api/message',{method:'POST',body:JSON.stringify({conversation:curConv.id,text,client_msg_id:cmid})}); await loadMessages(false); }
+  try{ await api('/api/message',{method:'POST',body:JSON.stringify({conversation:curConv.id,text,client_msg_id:cmid})}); viewingHistory=false; $('#latestBtn').classList.add('hidden'); await loadMessages(true); }
   catch(e){ toast('送出失敗：'+e.message); input.value=text; }
 }
 $('#imgBtn').onclick = ()=> $('#imgFile').click();
 $('#imgFile').onchange = async e=>{
   const f = e.target.files[0]; if(!f||!curConv) return;
   toast('上傳中…');
-  try{ const data = await compress(f); const cmid=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()); await api('/api/message',{method:'POST',body:JSON.stringify({conversation:curConv.id,images:[data],client_msg_id:cmid})}); await loadMessages(false); }
+  try{ const data = await compress(f); const cmid=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()); await api('/api/message',{method:'POST',body:JSON.stringify({conversation:curConv.id,images:[data],client_msg_id:cmid})}); viewingHistory=false; $('#latestBtn').classList.add('hidden'); await loadMessages(true); }
   catch(err){ toast('上傳失敗：'+err.message); }
   e.target.value='';
 };
@@ -501,11 +619,13 @@ function setView(v, title){
   document.body.dataset.view = v;
   $('#listScreen').classList.toggle('hidden', v!=='list');
   $('#chatScreen').classList.toggle('hidden', v!=='chat');
+  $('#calendarScreen').classList.toggle('hidden', v!=='calendar');
   $('#profileScreen').classList.toggle('hidden', v!=='profile');
   const back=$('#backBtn'), act=$('#actBtn');
   act.classList.remove('info');
   if(v==='list'){ $('#topTitle').textContent='傳音石'; back.style.visibility='hidden'; act.textContent=''; act.onclick=null; }
-  else if(v==='chat'){ back.style.visibility='visible'; back.onclick=()=>{ loadConversations(); }; act.textContent=''; act.classList.add('info'); act.onclick=()=>{ if(curConv&&curConv.type==='dm') openProfile(curConv.members.find(m=>m!==ME)); else toast('群組：'+(curConv.members||[]).join('、')); }; }
+  else if(v==='chat'){ $('#topTitle').textContent=chatTitle(); back.style.visibility='visible'; back.onclick=()=>{ loadConversations(); }; act.textContent=''; act.classList.add('info'); act.onclick=openCalendar; }
+  else if(v==='calendar'){ $('#topTitle').textContent='按日期搜尋'; back.style.visibility='visible'; back.onclick=()=>setView('chat'); act.textContent=''; act.onclick=null; }
   else { $('#topTitle').textContent=title||'檔案'; back.style.visibility='visible'; back.onclick=()=>{ if(curConv) setView('chat'); else loadConversations(); }; act.textContent=''; act.onclick=null; }
 }
 
@@ -516,7 +636,7 @@ async function checkRev(){
   try{
     const d = await api('/api/rev');
     if(d.rev===lastRev) return; lastRev=d.rev;
-    if(view==='chat' && curConv){ await loadMessages(true); await api('/api/read',{method:'POST',body:JSON.stringify({conversation:curConv.id})}); }
+    if(view==='chat' && curConv && !viewingHistory){ await loadMessages(true); await api('/api/read',{method:'POST',body:JSON.stringify({conversation:curConv.id})}); }
     else if(view==='list'){ await loadConversations(); }
   }catch(e){}
 }
@@ -571,8 +691,21 @@ async function mockApi(path, opts={}){
   if (P==='/api/messages'){
     const c = MOCK.convs[Number(u.searchParams.get('conversation'))]; if(!c) return {error:'no'};
     const member = c.members.includes(MOCK.me);
+    const since = Number(u.searchParams.get('since')||0);
     return {conversation:{id:c.id,type:c.type,title:c.title,members:c.members,member,observing:!member},
-      messages:c.msgs.map(m=>({id:m.id, sender:m.sender, text:m.deleted?'':m.text, images:[], at:m.at, mine:m.sender===MOCK.me, recalled:!!m.deleted})), now:Date.now(), profiles:MOCK.profiles};
+      messages:c.msgs.filter(m=>m.at>since).map(m=>({id:m.id, sender:m.sender, text:m.deleted?'':m.text, images:[], at:m.at, mine:m.sender===MOCK.me, recalled:!!m.deleted})), now:Date.now(), profiles:MOCK.profiles};
+  }
+  if (P==='/api/message-days'){
+    const c = MOCK.convs[Number(u.searchParams.get('conversation'))]; if(!c) return {conversation:0,tz:'Asia/Taipei',days:[]};
+    const by={};
+    for(const m of c.msgs){
+      const day=ymdLocal(m.at);
+      if(!by[day]) by[day]={day,count:0,first_at:m.at,last_at:m.at};
+      by[day].count++;
+      by[day].first_at=Math.min(by[day].first_at,m.at);
+      by[day].last_at=Math.max(by[day].last_at,m.at);
+    }
+    return {conversation:c.id,tz:'Asia/Taipei',days:Object.values(by).sort((a,b)=>a.day.localeCompare(b.day))};
   }
   if (P==='/api/message'){ const c=MOCK.convs[Number(body.conversation)]; if(c){ c.msgs.push({id:Date.now(),sender:MOCK.me,text:body.text||'',at:Date.now()}); c.updated_at=Date.now(); } return {ok:true}; }
   if (P==='/api/message/delete'){ for(const c of Object.values(MOCK.convs)){ const m=c.msgs.find(x=>x.id===Number(body.id)); if(m){ m.deleted=true; m.text=''; c.updated_at=Date.now(); } } return {ok:true,recalled:true}; }
