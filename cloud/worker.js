@@ -45,6 +45,7 @@ export default {
       if (P === '/api/admin/member' && M === 'POST') return adminMember(request, env, me);
       if (P === '/api/admin/conversation-add' && M === 'POST') return adminConvAdd(request, env, me);
       if (P === '/api/admin/migrate' && M === 'POST') return adminMigrate(env, me);
+      if (P === '/api/admin/profile' && M === 'POST') return adminProfile(request, env, me);
       return json({ error: 'not found' }, 404);
     } catch (e) {
       return json({ error: errmsg(e) }, 500);
@@ -370,6 +371,25 @@ async function getMedia(url, env) {
   h.set('Cache-Control', 'public, max-age=31536000, immutable');
   h.set('Access-Control-Allow-Origin', '*');
   return new Response(value, { headers: h });
+}
+
+// ── POST /api/admin/profile {name, avatar?, cover?, signature?}：管理員幫指定成員改個人頁（頭像/封面/狀態）──
+// avatar/cover 可給圖片網址(後端自抓)、data:URL 或 base64。用於 CK 幫家人設頭像。
+async function adminProfile(request, env, me) {
+  if (!hasScope(me, 'admin')) return json({ error: '需要 admin 權限' }, 403);
+  const b = await request.json().catch(() => ({}));
+  const name = String(b.name || '').trim();
+  if (!name) return json({ error: '缺 name' }, 400);
+  await env.DB.prepare('INSERT INTO profiles (name) VALUES (?) ON CONFLICT(name) DO NOTHING').bind(name).run();
+  const sets = [], vals = [];
+  if ('signature' in b) { sets.push('signature = ?'); vals.push(String(b.signature || '').trim().replace(/\n/g, ' ') || null); }
+  if (b.avatar) { const k = await putImage(env, `avatars/${name}_${Date.now()}`, b.avatar); if (k) { sets.push('avatar_key = ?'); vals.push(k); } }
+  if (b.cover)  { const k = await putImage(env, `covers/${name}_${Date.now()}`, b.cover);  if (k) { sets.push('cover_key = ?');  vals.push(k); } }
+  if (!sets.length) return json({ error: '沒有要更新的內容（給 avatar/cover/signature）' }, 400);
+  sets.push('updated_at = ?'); vals.push(Date.now());
+  vals.push(name);
+  await env.DB.prepare(`UPDATE profiles SET ${sets.join(', ')} WHERE name = ?`).bind(...vals).run();
+  return json({ ok: true, name });
 }
 
 // ── POST /api/admin/member：管理員發 token（建 profile + 產一組新 token，明文只回一次）──
