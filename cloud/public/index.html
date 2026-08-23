@@ -649,40 +649,57 @@ async function openProfile(name){
   let p = profiles[name];
   try{ const d = await api('/api/profile?name='+encodeURIComponent(name)); p = d.profile; profiles[name]=p; }catch(e){}
   const isMe = name===ME;
+  const canEdit = isMe || ME_ADMIN;   // 本人、或管理員(CK)可改任何人（沿用同一組編輯鈕，不動視覺）
   const cover = p.cover ? `background-image:url('${p.cover}')` : '';
   const av = p.avatar ? `background-image:url('${p.avatar}')` : `background-color:${p.color||'#6b9bd0'}`;
   const avInner = p.avatar ? '' : initials(name);
-  const statusText = p.signature ? enc(p.signature) : (isMe?'點這裡設定你的狀態':'還沒有狀態');
+  const statusText = p.signature ? enc(p.signature) : (canEdit?(isMe?'點這裡設定你的狀態':'點這裡幫 TA 設定狀態'):'還沒有狀態');
   const status = `「${statusText}」`;
   $('#profileScreen').innerHTML = `
     <div class="pcover" style="${cover}">
-      ${isMe?`<button class="coveredit" id="edCv" title="換封面">✎</button>`:''}
-      <div class="avatar pav ${isMe?'editable':''}" style="${av}">${avInner}</div>
+      ${canEdit?`<button class="coveredit" id="edCv" title="換封面">✎</button>`:''}
+      <div class="avatar pav ${canEdit?'editable':''}" style="${av}">${avInner}</div>
     </div>
     <div class="pbody">
       <div class="pname">${enc(name)}</div>
-      <div class="pstatus ${p.signature?'':'empty'} ${isMe?'editable':''}" id="pStatus">${status}</div>
+      <div class="pstatus ${p.signature?'':'empty'} ${canEdit?'editable':''}" id="pStatus">${status}</div>
       ${isMe?`<div class="pedit"><button class="logout" id="edOut">登出</button></div>`:''}
     </div>`;
-  if(isMe){
-    $('#edCv').onclick=()=>pickImg('cover');
-    $('#profileScreen').querySelector('.pav').onclick=()=>pickImg('avatar');
-    $('#pStatus').onclick=editStatus;
-    $('#edOut').onclick=logout;
+  if(canEdit){
+    const cv=$('#edCv'); if(cv) cv.onclick=()=>pickImg('cover', name);
+    const pav=$('#profileScreen').querySelector('.pav'); if(pav) pav.onclick=()=>pickImg('avatar', name);
+    const st=$('#pStatus'); if(st) st.onclick=()=>editStatus(name);
   }
+  const out=$('#edOut'); if(out) out.onclick=logout;   // 登出只有本人的畫面才有
   setView('profile', isMe?'我的檔案':name);
 }
-function pickImg(kind){
+// target 省略＝改自己(/api/profile)；admin 改別人＝帶 name 打 /api/admin/profile
+function pickImg(kind, target){
+  target = target || ME;
+  const isSelf = target === ME;
   const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
   inp.onchange=async e=>{ const f=e.target.files[0]; if(!f) return; toast('上傳中…');
-    try{ const data=await compress(f); await api('/api/profile',{method:'POST',body:JSON.stringify({[kind]:data})}); toast('更新好了 💙'); profiles[ME]=null; await openProfile(ME); }
+    try{
+      const data=await compress(f);
+      const ep = isSelf ? '/api/profile' : '/api/admin/profile';
+      const body = isSelf ? {[kind]:data} : {name:target, [kind]:data};
+      await api(ep,{method:'POST',body:JSON.stringify(body)}); toast('更新好了 💙');
+      profiles[target]=null; await openProfile(target);
+    }
     catch(err){ toast('失敗：'+err.message); } };
   inp.click();
 }
-async function editStatus(){
-  const cur = (profiles[ME]&&profiles[ME].signature)||'';
-  const v = prompt('設定你的狀態欄：', cur); if(v===null) return;
-  try{ await api('/api/profile',{method:'POST',body:JSON.stringify({signature:v})}); toast('狀態更新 ✨'); profiles[ME]=null; await openProfile(ME); }
+async function editStatus(target){
+  target = target || ME;
+  const isSelf = target === ME;
+  const cur = (profiles[target]&&profiles[target].signature)||'';
+  const v = prompt(isSelf?'設定你的狀態欄：':('設定 '+target+' 的狀態欄：'), cur); if(v===null) return;
+  try{
+    const ep = isSelf ? '/api/profile' : '/api/admin/profile';
+    const body = isSelf ? {signature:v} : {name:target, signature:v};
+    await api(ep,{method:'POST',body:JSON.stringify(body)}); toast('狀態更新 ✨');
+    profiles[target]=null; await openProfile(target);
+  }
   catch(e){ toast('失敗：'+e.message); }
 }
 
@@ -787,6 +804,7 @@ async function mockApi(path, opts={}){
   if (P==='/api/message/delete'){ for(const c of Object.values(MOCK.convs)){ const m=c.msgs.find(x=>x.id===Number(body.id)); if(m){ m.deleted=true; m.text=''; c.updated_at=Date.now(); } } return {ok:true,recalled:true}; }
   if (P==='/api/read') return {ok:true};
   if (P==='/api/profile' && opts.method==='POST'){ Object.assign(MOCK.profiles[MOCK.me], body); return {ok:true}; }
+  if (P==='/api/admin/profile'){ const t=body.name; if(t){ MOCK.profiles[t]=Object.assign(MOCK.profiles[t]||{name:t,color:'#8a8a8a'}, body); } return {ok:true,name:t}; }
   if (P==='/api/profile') return {profile: MOCK.profiles[u.searchParams.get('name')]||{name:u.searchParams.get('name'),color:'#8a8a8a'}};
   return {ok:true};
 }
