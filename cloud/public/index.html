@@ -352,22 +352,34 @@ function configureChatTitleAction(){
 // ── 登入 ──
 $('#loginBtn').onclick = doLogin;
 $('#tokenInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
-$('#knownBtn').onclick = ()=>{ $('#loginErr').textContent=''; enterApp(); };
+$('#knownBtn').onclick = ()=>{ $('#loginErr').textContent='載入中…'; enterApp(); };
 $('#switchBtn').onclick = logout;
 
 async function enterApp(){
+  await loadConversations();
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
-  await loadConversations(); startPoll();
+  $('#loginErr').textContent='';
+  startPoll();
 }
 // 「認得你」畫面：頭像＋名字＋一鍵進入
 function showKnown(name, avatar){
   $('#loginInput').classList.add('hidden'); $('#loginKnown').classList.remove('hidden');
   $('#knownName').textContent = name;
   const av = $('#knownAv');
+  av.style.backgroundImage='';
   if(avatar){ av.style.backgroundImage=`url('${avatar}')`; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; av.textContent=''; }
   else { av.style.backgroundColor='#7fb3e6'; av.textContent=(name||'?').slice(0,2); }
 }
 function showInput(){ $('#loginKnown').classList.add('hidden'); $('#loginInput').classList.remove('hidden'); $('#tokenInput').value=''; }
+async function refreshKnownProfile(){
+  if(!TOKEN || !ME) return;
+  try{
+    const d = await api('/api/profile?name='+encodeURIComponent(ME));
+    const avatar = d.profile && d.profile.avatar ? d.profile.avatar : '';
+    if(avatar) localStorage.setItem('bs-avatar', avatar); else localStorage.removeItem('bs-avatar');
+    showKnown(ME, avatar);
+  }catch(e){}
+}
 
 async function doLogin(){
   const t = $('#tokenInput').value.trim();
@@ -378,7 +390,7 @@ async function doLogin(){
     ME = me.name; ME_ADMIN = String(me.scopes||'').split(',').map(s=>s.trim()).includes('admin');
     localStorage.setItem('bs-token', TOKEN); localStorage.setItem('bs-name', ME);
     // 快取自己的頭像 → 下次登入頁直接亮出來
-    try{ const d = await api('/api/profile?name='+encodeURIComponent(ME)); if(d.profile && d.profile.avatar) localStorage.setItem('bs-avatar', d.profile.avatar); else localStorage.removeItem('bs-avatar'); }catch(e){}
+    await refreshKnownProfile();
     await enterApp();
   }catch(e){ TOKEN=''; $('#loginErr').textContent='token 無效，再確認一下 🥲'; }
 }
@@ -685,6 +697,7 @@ function pickImg(kind, target){
       const body = isSelf ? {[kind]:data} : {name:target, [kind]:data};
       await api(ep,{method:'POST',body:JSON.stringify(body)}); toast('更新好了 💙');
       profiles[target]=null; await openProfile(target);
+      if(isSelf && kind==='avatar') await refreshKnownProfile();
     }
     catch(err){ toast('失敗：'+err.message); } };
   inp.click();
@@ -867,6 +880,7 @@ function initBlueStringFx(){
     try{
       const me = await api('/api/me'); ME = me.name; ME_ADMIN = String(me.scopes||'').split(',').map(s=>s.trim()).includes('admin');
       showKnown(ME, localStorage.getItem('bs-avatar') || '');
+      refreshKnownProfile();
     }
     catch(e){ localStorage.removeItem('bs-token'); TOKEN=''; showInput(); }
   } else {
