@@ -47,6 +47,7 @@ export default {
       if (P === '/api/admin/conversation-add' && M === 'POST') return adminConvAdd(request, env, me);
       if (P === '/api/admin/migrate' && M === 'POST') return adminMigrate(env, me);
       if (P === '/api/admin/profile' && M === 'POST') return adminProfile(request, env, me);
+      if (P === '/api/admin/revoke' && M === 'POST') return adminRevoke(request, env, me);
       return json({ error: 'not found' }, 404);
     } catch (e) {
       return json({ error: errmsg(e) }, 500);
@@ -426,6 +427,25 @@ async function adminProfile(request, env, me) {
   vals.push(name);
   await env.DB.prepare(`UPDATE profiles SET ${sets.join(', ')} WHERE name = ?`).bind(...vals).run();
   return json({ ok: true, name });
+}
+
+// ── POST /api/admin/revoke {token?, name?}：撤銷 token（洩漏時用）。給 token→依 hash 撤該顆(並回它原本是誰的)；給 name→撤某人全部 token ──
+async function adminRevoke(request, env, me) {
+  if (!hasScope(me, 'admin')) return json({ error: '需要 admin 權限' }, 403);
+  const b = await request.json().catch(() => ({}));
+  if (b.token) {
+    const hash = await sha256hex(String(b.token).trim());
+    const row = await env.DB.prepare('SELECT name, scopes FROM tokens WHERE token_hash = ?').bind(hash).first();
+    if (!row) return json({ ok: true, revoked: 0, note: '查無此 token（已失效、或非本站 token）' });
+    await env.DB.prepare('DELETE FROM tokens WHERE token_hash = ?').bind(hash).run();
+    return json({ ok: true, revoked: 1, name: row.name, scopes: row.scopes, note: '已撤銷；若那人還在用會被登出，需用 /api/admin/member 重發' });
+  }
+  if (b.name) {
+    const n = String(b.name).trim();
+    const r = await env.DB.prepare('DELETE FROM tokens WHERE name = ?').bind(n).run();
+    return json({ ok: true, revoked: (r.meta && r.meta.changes) || 0, name: n, note: '已撤銷該名下全部 token；重發用 /api/admin/member' });
+  }
+  return json({ error: '給 token 或 name' }, 400);
 }
 
 // ── POST /api/admin/member：管理員發 token（建 profile + 產一組新 token，明文只回一次）──
