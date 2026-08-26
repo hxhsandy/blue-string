@@ -31,6 +31,7 @@ export default {
       if (P === '/api/conversations' && M === 'GET')  return getConversations(env, me);
       if (P === '/api/messages'      && M === 'GET')  return getMessages(url, env, me);
       if (P === '/api/message-days'  && M === 'GET')  return getMessageDays(url, env, me);
+      if (P === '/api/export'        && M === 'GET')  return exportMessages(url, env, me);
       if (P === '/api/profile'       && M === 'GET')  return getProfile(url, env);
 
       // 寫入類要 'post' 權限（訪客 scope=read 只能看）
@@ -170,6 +171,40 @@ async function getMessageDays(url, env, me) {
     "SELECT strftime('%Y-%m-%d', created_at/1000, 'unixepoch', '+8 hours') AS day, COUNT(*) AS count, MIN(created_at) AS first_at, MAX(created_at) AS last_at FROM messages WHERE conversation_id = ? GROUP BY day ORDER BY day ASC"
   ).bind(cid).all()).results;
   return json({ conversation: cid, tz: 'Asia/Taipei', days: rows });
+}
+
+// ── GET /api/export?conversation=X&since=<訊息id,可空>&limit=200：匯出訊息（給記憶瓶 puller 增量拉取）──
+// 需 admin(匯出跨對話私訊內容)。用訊息 id 當游標(單調遞增、穩)。媒體給「絕對公開網址」；收回的訊息 deleted=true、text/media 已清空。
+async function exportMessages(url, env, me) {
+  if (!hasScope(me, 'admin')) return json({ error: '需要 admin 權限（匯出私訊內容）' }, 403);
+  const cid = Number(url.searchParams.get('conversation'));
+  if (!cid) return json({ error: '缺 conversation' }, 400);
+  const since = Number(url.searchParams.get('since') || 0);
+  let limit = Number(url.searchParams.get('limit') || 200);
+  if (!(limit > 0)) limit = 200;
+  if (limit > 500) limit = 500;
+  const origin = url.origin;
+  const rows = (await env.DB.prepare(
+    'SELECT * FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id ASC LIMIT ?'
+  ).bind(cid, since, limit).all()).results;
+  const messages = rows.map(r => ({
+    id: r.id,
+    conversation_id: r.conversation_id,
+    sender: r.sender,
+    text: r.deleted ? '' : (r.text || ''),
+    created_at: r.created_at,                          // epoch 毫秒 (UTC)
+    created_at_tw: tsToTaipeiISO(r.created_at),        // ISO 字串 +08:00 (台北牆上時間)
+    media: r.deleted ? [] : (r.media_keys ? r.media_keys.split(',').filter(Boolean).map(k => origin + '/api/media?key=' + encodeURIComponent(k)) : []),
+    deleted: !!r.deleted,
+    client_msg_id: r.client_msg_id || null,
+  }));
+  const next_since = rows.length ? rows[rows.length - 1].id : since;
+  return json({ conversation: cid, messages, count: messages.length, next_since, has_more: rows.length === limit });
+}
+// epoch ms → 台北牆上時間 ISO（+08:00）。把時間先位移 8h 再用 UTC 格式化、末尾 Z 換 +08:00。
+function tsToTaipeiISO(ms) {
+  if (!ms && ms !== 0) return null;
+  return new Date(ms + 8 * 3600 * 1000).toISOString().replace('Z', '+08:00');
 }
 
 // ── POST /api/message {conversation, text, images?, client_msg_id?}：送訊息（成員才行）──
