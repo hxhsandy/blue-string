@@ -176,7 +176,8 @@ async function getMessageDays(url, env, me) {
 // ── GET /api/export?conversation=X&since=<訊息id,可空>&limit=200：匯出訊息（給記憶瓶 puller 增量拉取）──
 // 需 admin(匯出跨對話私訊內容)。用訊息 id 當游標(單調遞增、穩)。媒體給「絕對公開網址」；收回的訊息 deleted=true、text/media 已清空。
 async function exportMessages(url, env, me) {
-  if (!hasScope(me, 'admin')) return json({ error: '需要 admin 權限（匯出私訊內容）' }, 403);
+  // admin 或專用的 export scope（給記憶瓶 puller 的最小權限：只能匯出、不能刪改）
+  if (!hasScope(me, 'admin') && !hasScope(me, 'export')) return json({ error: '需要 admin 或 export 權限（匯出私訊內容）' }, 403);
   const cid = Number(url.searchParams.get('conversation'));
   if (!cid) return json({ error: '缺 conversation' }, 400);
   const since = Number(url.searchParams.get('since') || 0);
