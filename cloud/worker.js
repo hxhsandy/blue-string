@@ -143,9 +143,19 @@ async function getMessages(url, env, me) {
   if (!member && !hasScope(me, 'admin')) return json({ error: '你不在這段對話裡' }, 403);   // admin 可監督讀取
   const since = Number(url.searchParams.get('since') || 0);
   // SELECT * → 就算 deleted/client_msg_id 欄位還沒 migrate 也不會壞（欄位不存在時 r.deleted 為 undefined）
-  const rows = (await env.DB.prepare(
-    'SELECT * FROM messages WHERE conversation_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 300'
-  ).bind(cid, since).all()).results;
+  let rows;
+  if (since > 0) {
+    // 增量／從某錨點往後（日期跳轉）：時間軸正向取後 300 則
+    rows = (await env.DB.prepare(
+      'SELECT * FROM messages WHERE conversation_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 300'
+    ).bind(cid, since).all()).results;
+  } else {
+    // 初次載入／重刷／輪詢（since=0）：取「最新的 300 則」再反轉成正序。
+    // ⚠ 舊版這裡用 ASC LIMIT 300，對話一旦超過 300 則就只回最舊 300 則、新訊息被截在視窗外（小幾×小傑爆量後小傑收不到就是這個）。
+    rows = (await env.DB.prepare(
+      'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 300'
+    ).bind(cid).all()).results.reverse();
+  }
   const c = await env.DB.prepare('SELECT * FROM conversations WHERE id = ?').bind(cid).first();
   const members = (await env.DB.prepare('SELECT member FROM conversation_members WHERE conversation_id = ?').bind(cid).all()).results.map(r => r.member);
   const msgs = rows.map(r => ({
